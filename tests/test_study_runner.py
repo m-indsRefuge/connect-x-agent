@@ -1,6 +1,10 @@
 import runpy
+import sys
 from pathlib import Path
+from types import ModuleType
 from typing import Any
+
+import pytest
 
 from connect_x_agent.study.records import EpisodeRecord
 from connect_x_agent.study.runner import run_p2_study
@@ -47,6 +51,11 @@ def test_p2_runner_records_ordered_complete_games_with_coherent_plies() -> None:
         assert (episode.candidate_result, episode.winner) == expected_outcomes[
             episode.candidate_reward
         ]
+        assert getattr(episode, "columns", None) == 4
+        assert getattr(episode, "rows", None) == 3
+        assert getattr(episode, "inarow", None) == 3
+        assert getattr(episode, "failure_kind", None) is None
+        assert getattr(episode, "failure_reason", None) is None
         assert episode.opening_column == episode.plies[0].action
         assert episode.plies[0].mark == 1
         assert {ply.mark for ply in episode.plies} == {1, 2}
@@ -74,7 +83,7 @@ def test_p2_runner_records_ordered_complete_games_with_coherent_plies() -> None:
             )
 
 
-def test_p2_runner_records_invalid_candidate_episodes_without_aborting_batch() -> None:
+def test_p2_runner_records_invalid_candidate_runtime_provenance() -> None:
     def invalid_candidate(observation: Any, configuration: Any) -> int:
         return int(configuration.columns)
 
@@ -94,6 +103,38 @@ def test_p2_runner_records_invalid_candidate_episodes_without_aborting_batch() -
     assert all(episode.candidate_reward is None for episode in episodes)
     assert all(episode.winner is None for episode in episodes)
     assert all(episode.opening_column == 0 for episode in episodes)
+    assert all(
+        getattr(episode, "failure_kind", None) == "candidate_runtime"
+        for episode in episodes
+    )
+    assert all(
+        "INVALID" in str(getattr(episode, "failure_reason", ""))
+        for episode in episodes
+    )
+
+
+def test_p2_runner_does_not_hide_study_pipeline_decode_failures(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MalformedEnvironment:
+        def run(self, agents: list[Any]) -> list[list[Any]]:
+            del agents
+            return []
+
+    fake_kaggle = ModuleType("kaggle_environments")
+    fake_kaggle.make = lambda *args, **kwargs: MalformedEnvironment()  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "kaggle_environments", fake_kaggle)
+
+    with pytest.raises(ValueError, match="history is empty"):
+        run_p2_study(
+            candidate=first_legal_agent,
+            opponent=first_legal_agent,
+            games=1,
+            columns=4,
+            rows=3,
+            inarow=3,
+            opponent_name="malformed",
+        )
 
 
 def test_smoke_script_summarizes_study_outcomes() -> None:
