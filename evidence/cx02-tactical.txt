@@ -1,0 +1,35 @@
+CX-02 TACTICAL ARENA
+====================
+
+Candidate: immediate-win + immediate-block
+Opponent: Kaggle random
+Games: 1000
+Games per seat: 500
+
+PLAYER 1
+Wins: 485
+Draws: 0
+Losses: 15
+Failures: 0
+Win rate: 97.0%
+
+PLAYER 2
+Wins: 477
+Draws: 1
+Losses: 22
+Failures: 0
+Win rate: 95.4%
+
+COMBINED
+Wins: 962
+Draws: 1
+Losses: 37
+Failures: 0
+Win rate: 96.2%
+
+CX-01 REFERENCE
+Overall win rate: 78.9%
+
+CONCLUSION
+One-ply tactical awareness produced a large measured improvement
+over the legal-move-only baseline against Kaggle Random.
