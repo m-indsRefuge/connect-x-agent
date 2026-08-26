@@ -166,7 +166,7 @@ def _candidate_outcome(
     reward = candidate_state.reward
 
     if not isinstance(reward, int):
-        raise ValueError(f"Unexpected candidate reward: {reward!r}")
+        raise TypeError(f"Unexpected candidate reward: {reward!r}")
 
     if reward == 1:
         return reward, 2, "win", None, None
