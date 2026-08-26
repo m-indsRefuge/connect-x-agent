@@ -2,7 +2,7 @@ from itertools import pairwise
 from typing import Any
 
 from .instrumentation import position_features
-from .records import CandidateResult, EpisodeRecord, PlyRecord
+from .records import CandidateResult, EpisodeRecord, FailureKind, PlyRecord
 
 
 def run_p2_study(
@@ -15,7 +15,12 @@ def run_p2_study(
     inarow: int = 4,
     opponent_name: str,
 ) -> tuple[EpisodeRecord, ...]:
-    """Run recorded games with ``candidate`` fixed to Kaggle seat two."""
+    """Run recorded games with ``candidate`` fixed to Kaggle seat two.
+
+    Structured agent/runtime failures are recorded as episode provenance.
+    Malformed Kaggle history or study-pipeline decoding failures are allowed
+    to raise so they cannot be silently mixed into the empirical corpus.
+    """
     # Import lazily so record and instrumentation unit tests do not pay the
     # kaggle-environments/OpenSpiel startup cost.
     from kaggle_environments import make  # type: ignore[import-untyped]
@@ -32,9 +37,8 @@ def run_p2_study(
             },
         )
         history = environment.run([opponent, candidate])
-
-        try:
-            episode = _episode_from_history(
+        episodes.append(
+            _episode_from_history(
                 history=history,
                 episode_id=episode_id,
                 opponent_name=opponent_name,
@@ -42,13 +46,7 @@ def run_p2_study(
                 rows=rows,
                 inarow=inarow,
             )
-        except (IndexError, KeyError, TypeError, ValueError):
-            episode = _failure_episode(
-                episode_id=episode_id,
-                opponent_name=opponent_name,
-            )
-
-        episodes.append(episode)
+        )
 
     return tuple(episodes)
 
@@ -115,7 +113,13 @@ def _episode_from_history(
             )
         )
 
-    candidate_reward, winner, candidate_result = _candidate_outcome(history[-1])
+    (
+        candidate_reward,
+        winner,
+        candidate_result,
+        failure_kind,
+        failure_reason,
+    ) = _candidate_outcome(history[-1])
     opening_column = plies[0].action if plies and plies[0].mark == 1 else None
 
     return EpisodeRecord(
@@ -127,6 +131,11 @@ def _episode_from_history(
         winner=winner,
         candidate_reward=candidate_reward,
         candidate_result=candidate_result,
+        columns=columns,
+        rows=rows,
+        inarow=inarow,
+        failure_kind=failure_kind,
+        failure_reason=failure_reason,
     )
 
 
@@ -136,37 +145,36 @@ def _shared_board(state: list[Any]) -> tuple[int, ...]:
 
 def _candidate_outcome(
     final_state: list[Any],
-) -> tuple[int | None, int | None, CandidateResult]:
+) -> tuple[
+    int | None,
+    int | None,
+    CandidateResult,
+    FailureKind | None,
+    str | None,
+]:
+    opponent_state = final_state[0]
     candidate_state = final_state[1]
+    opponent_status = str(opponent_state.status)
+    candidate_status = str(candidate_state.status)
+
+    if candidate_status != "DONE":
+        return None, None, "failure", "candidate_runtime", candidate_status
+
+    if opponent_status != "DONE":
+        return None, None, "failure", "opponent_runtime", opponent_status
+
     reward = candidate_state.reward
 
-    if candidate_state.status != "DONE" or not isinstance(reward, int):
-        return None, None, "failure"
+    if not isinstance(reward, int):
+        raise ValueError(f"Unexpected candidate reward: {reward!r}")
 
     if reward == 1:
-        return reward, 2, "win"
+        return reward, 2, "win", None, None
 
     if reward == 0:
-        return reward, None, "draw"
+        return reward, None, "draw", None, None
 
     if reward == -1:
-        return reward, 1, "loss"
+        return reward, 1, "loss", None, None
 
-    return None, None, "failure"
-
-
-def _failure_episode(
-    *,
-    episode_id: int,
-    opponent_name: str,
-) -> EpisodeRecord:
-    return EpisodeRecord(
-        episode_id=episode_id,
-        opponent=opponent_name,
-        candidate_mark=2,
-        opening_column=None,
-        plies=(),
-        winner=None,
-        candidate_reward=None,
-        candidate_result="failure",
-    )
+    raise ValueError(f"Unexpected candidate reward: {reward!r}")
