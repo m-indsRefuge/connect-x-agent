@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Literal
 
 CandidateResult = Literal["win", "draw", "loss", "failure"]
+FailureKind = Literal["candidate_runtime", "opponent_runtime"]
 
 
 @dataclass(frozen=True)
@@ -43,6 +44,11 @@ class EpisodeRecord:
     winner: int | None
     candidate_reward: int | None
     candidate_result: CandidateResult
+    columns: int = 7
+    rows: int = 6
+    inarow: int = 4
+    failure_kind: FailureKind | None = None
+    failure_reason: str | None = None
 
 
 def position_features_to_dict(features: PositionFeatures) -> dict[str, object]:
@@ -84,6 +90,11 @@ def episode_to_dict(record: EpisodeRecord) -> dict[str, object]:
         "winner": record.winner,
         "candidate_reward": record.candidate_reward,
         "candidate_result": record.candidate_result,
+        "columns": record.columns,
+        "rows": record.rows,
+        "inarow": record.inarow,
+        "failure_kind": record.failure_kind,
+        "failure_reason": record.failure_reason,
     }
 
 
