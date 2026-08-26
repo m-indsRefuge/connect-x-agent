@@ -1,0 +1,35 @@
+CX-02 NEGAMAX PROBE
+====================
+
+Candidate: immediate-win + immediate-block
+Opponent: Kaggle negamax
+Games: 100
+Games per seat: 50
+
+PLAYER 1
+Wins: 7
+Draws: 0
+Losses: 43
+Failures: 0
+Win rate: 14.0%
+
+PLAYER 2
+Wins: 6
+Draws: 0
+Losses: 44
+Failures: 0
+Win rate: 12.0%
+
+COMBINED
+Wins: 13
+Draws: 0
+Losses: 87
+Failures: 0
+Win rate: 13.0%
+
+DIAGNOSIS
+One-ply tactical awareness is highly effective against Random
+but is strongly outclassed by an opponent using lookahead.
+
+CX-02 vs Random: 96.2%
+CX-02 vs Negamax: 13.0%
