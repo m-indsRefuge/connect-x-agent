@@ -1,0 +1,25 @@
+[project]
+name = "connect-x-agent"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+authors = [
+    { name = "Nolan Augustine", email = "nolanaug@gmail.com" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "kaggle-environments==1.32.7",
+]
+
+[project.scripts]
+connect-x-agent = "connect_x_agent:main"
+
+[build-system]
+requires = ["uv_build>=0.12.1,<0.13.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+    "ruff>=0.16.4",
+]
