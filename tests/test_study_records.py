@@ -100,6 +100,11 @@ def test_episode_serialization_preserves_all_fields_as_json_values() -> None:
         "winner": 2,
         "candidate_reward": 1,
         "candidate_result": "win",
+        "columns": 7,
+        "rows": 6,
+        "inarow": 4,
+        "failure_kind": None,
+        "failure_reason": None,
     }
 
 
