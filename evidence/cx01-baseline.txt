@@ -1,0 +1,32 @@
+CX-01 BASELINE ARENA
+====================
+
+Candidate: leftmost-legal
+Opponent: Kaggle random
+Games: 1000
+Games per seat: 500
+
+PLAYER 1
+Wins: 410
+Draws: 0
+Losses: 90
+Failures: 0
+Win rate: 82.0%
+
+PLAYER 2
+Wins: 379
+Draws: 0
+Losses: 121
+Failures: 0
+Win rate: 75.8%
+
+COMBINED
+Wins: 789
+Draws: 0
+Losses: 211
+Failures: 0
+Win rate: 78.9%
+
+NOTE:
+Kaggle random is stochastic. This is a statistical baseline,
+not an expectation of identical results on every rerun.
