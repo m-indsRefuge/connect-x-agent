@@ -23,7 +23,7 @@ def lookahead_agent(
     if not legal:
         raise RuntimeError("No legal moves available")
 
-    # First preserve CX-02's immediate winning behavior.
+    # Preserve CX-02: take an immediate win.
     for column in legal:
         candidate = drop_piece(
             board,
@@ -45,8 +45,7 @@ def lookahead_agent(
     opponent = 2 if mark == 1 else 1
 
     # CX-03:
-    # simulate every legal move and reject moves that permit
-    # an immediate winning response from the opponent.
+    # Reject moves that allow an immediate opponent win.
     safe_moves: list[int] = []
 
     for column in legal:
@@ -85,5 +84,5 @@ def lookahead_agent(
     if safe_moves:
         return safe_moves[0]
 
-    # If every move loses immediately, preserve deterministic behavior.
+    # Every move loses immediately; remain deterministic.
     return legal[0]
