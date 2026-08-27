@@ -1,7 +1,7 @@
 import hashlib
 import json
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
 from .instrumentation import position_features
 from .records import CandidateResult, EpisodeRecord, PositionFeatures
@@ -159,6 +159,18 @@ def analyze_episodes(episodes: tuple[EpisodeRecord, ...]) -> StudyReport:
         forcing=forcing,
         loss_anatomy=_loss_anatomy(episodes, counterattack, forcing),
     )
+
+
+def report_to_dict(report: StudyReport) -> dict[str, object]:
+    return {key: _json_ready(value) for key, value in asdict(report).items()}
+
+
+def _json_ready(value: object) -> object:
+    if isinstance(value, dict):
+        return {str(key): _json_ready(item) for key, item in value.items()}
+    if isinstance(value, (tuple, list)):
+        return [_json_ready(item) for item in value]
+    return value
 
 
 def _corpus_summary(episodes: tuple[EpisodeRecord, ...]) -> CorpusSummary:
