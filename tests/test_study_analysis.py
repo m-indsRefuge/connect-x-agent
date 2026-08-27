@@ -328,3 +328,101 @@ def test_forced_defense_counts_compliance_and_ignores_p1_positions() -> None:
     assert second.obeyed_positions == 0
     assert second.first_obeyed is False
     assert second.candidate_result == "loss"
+
+
+def test_counterattack_records_new_p2_fork_and_whether_candidate_uses_it() -> None:
+    used = episode_from_actions(
+        episode_id=20,
+        opponent="random",
+        actions=((1, 1), (2, 2), (1, 0), (2, 3)),
+        candidate_result="win",
+    )
+    used = replace(
+        used,
+        plies=(
+            used.plies[0],
+            used.plies[1],
+            used.plies[2],
+            replace(
+                used.plies[3],
+                features_before=replace(
+                    used.plies[3].features_before,
+                    p2_fork_moves=(3,),
+                ),
+            ),
+        ),
+    )
+    missed = episode_from_actions(
+        episode_id=21,
+        opponent="random",
+        actions=((1, 1), (2, 2), (1, 0), (2, 2)),
+        candidate_result="loss",
+    )
+    missed = replace(
+        missed,
+        plies=(
+            missed.plies[0],
+            missed.plies[1],
+            missed.plies[2],
+            replace(
+                missed.plies[3],
+                features_before=replace(
+                    missed.plies[3].features_before,
+                    p2_fork_moves=(3,),
+                ),
+            ),
+        ),
+    )
+
+    report = analyze_episodes((used, missed))
+
+    assert report.counterattack.episodes_with_counterattack == 2
+    assert len(report.counterattack.events) == 2
+
+    first, second = report.counterattack.events
+    assert first.episode_id == 20
+    assert first.creating_p1_ply == 3
+    assert first.fork_moves == (3,)
+    assert first.next_p2_used_fork is True
+    assert first.candidate_result == "win"
+
+    assert second.episode_id == 21
+    assert second.creating_p1_ply == 3
+    assert second.fork_moves == (3,)
+    assert second.next_p2_used_fork is False
+    assert second.candidate_result == "loss"
+
+
+def test_forcing_records_first_p2_move_that_leaves_one_p1_reply() -> None:
+    episode = episode_from_actions(
+        episode_id=30,
+        opponent="random",
+        actions=((1, 1), (2, 2), (1, 0), (2, 3), (1, 1)),
+        candidate_result="win",
+    )
+    episode = replace(
+        episode,
+        plies=(
+            episode.plies[0],
+            episode.plies[1],
+            episode.plies[2],
+            episode.plies[3],
+            replace(
+                episode.plies[4],
+                features_before=replace(
+                    episode.plies[4].features_before,
+                    p1_surviving_replies=(0,),
+                ),
+            ),
+        ),
+    )
+
+    report = analyze_episodes((episode,))
+
+    assert report.forcing.episodes_with_forcing_move == 1
+    assert len(report.forcing.events) == 1
+    event = report.forcing.events[0]
+    assert event.episode_id == 30
+    assert event.creating_p2_ply == 4
+    assert event.sole_p1_reply == 0
+    assert event.candidate_result == "win"
