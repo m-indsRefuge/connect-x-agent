@@ -253,3 +253,78 @@ def test_opening_summary_counts_results_and_first_p2_responses() -> None:
         OpeningResponseCount(opening_column=1, response_column=2, episodes=2),
         OpeningResponseCount(opening_column=3, response_column=1, episodes=1),
     )
+
+
+def test_forced_defense_counts_compliance_and_ignores_p1_positions() -> None:
+    obeyed = episode_from_actions(
+        episode_id=10,
+        opponent="random",
+        actions=((1, 1), (2, 2)),
+        candidate_result="win",
+    )
+    obeyed = replace(
+        obeyed,
+        plies=(
+            replace(
+                obeyed.plies[0],
+                features_before=replace(
+                    obeyed.plies[0].features_before,
+                    p2_surviving_replies=(1,),
+                ),
+            ),
+            replace(
+                obeyed.plies[1],
+                features_before=replace(
+                    obeyed.plies[1].features_before,
+                    p2_surviving_replies=(2,),
+                ),
+            ),
+        ),
+    )
+    missed = episode_from_actions(
+        episode_id=11,
+        opponent="random",
+        actions=((1, 1), (2, 3)),
+        candidate_result="loss",
+    )
+    missed = replace(
+        missed,
+        plies=(
+            replace(
+                missed.plies[0],
+                features_before=replace(
+                    missed.plies[0].features_before,
+                    p2_surviving_replies=(1,),
+                ),
+            ),
+            replace(
+                missed.plies[1],
+                features_before=replace(
+                    missed.plies[1].features_before,
+                    p2_surviving_replies=(2,),
+                ),
+            ),
+        ),
+    )
+
+    report = analyze_episodes((obeyed, missed))
+
+    assert report.forced_defense.episodes_with_forced_defense == 2
+    assert report.forced_defense.total_positions == 2
+    assert report.forced_defense.obeyed_positions == 1
+    assert len(report.forced_defense.events) == 2
+
+    first, second = report.forced_defense.events
+    assert first.episode_id == 10
+    assert first.first_ply == 2
+    assert first.total_positions == 1
+    assert first.obeyed_positions == 1
+    assert first.first_obeyed is True
+    assert first.candidate_result == "win"
+
+    assert second.episode_id == 11
+    assert second.first_ply == 2
+    assert second.total_positions == 1
+    assert second.obeyed_positions == 0
+    assert second.first_obeyed is False
+    assert second.candidate_result == "loss"
