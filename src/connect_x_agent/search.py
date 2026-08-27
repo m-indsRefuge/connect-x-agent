@@ -302,6 +302,135 @@ def _solve_exact_value(
         tuple(move_values)
     )
 
+
+def _solve_bounded_value(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+    remaining_depth: int,
+) -> GameValue:
+    legal = legal_columns(
+        board,
+        columns,
+    )
+
+    if not legal:
+        return "draw"
+
+    if remaining_depth == 0:
+        return "unknown"
+
+    values: list[GameValue] = []
+
+    for column in legal:
+        candidate = drop_piece(
+            board,
+            column,
+            mark,
+            columns,
+            rows,
+        )
+
+        if is_win(
+            candidate,
+            mark,
+            columns,
+            rows,
+            inarow,
+        ):
+            value: GameValue = "win"
+        else:
+            value = _invert_value(
+                _solve_bounded_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                    remaining_depth - 1,
+                )
+            )
+
+        values.append(
+            value
+        )
+
+    return _aggregate_values(
+        tuple(values)
+    )
+
+
+def _bounded_root_solution(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+    max_depth: int,
+) -> PositionSolution:
+    if max_depth == 0:
+        return _unknown_root_solution(
+            board,
+            columns,
+        )
+
+    analyses: list[MoveAnalysis] = []
+
+    for column in legal_columns(
+        board,
+        columns,
+    ):
+        candidate = drop_piece(
+            board,
+            column,
+            mark,
+            columns,
+            rows,
+        )
+
+        if is_win(
+            candidate,
+            mark,
+            columns,
+            rows,
+            inarow,
+        ):
+            value: GameValue = "win"
+        else:
+            value = _invert_value(
+                _solve_bounded_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                    max_depth - 1,
+                )
+            )
+
+        analyses.append(
+            MoveAnalysis(
+                column=column,
+                value=value,
+            )
+        )
+
+    moves = tuple(analyses)
+    values = tuple(
+        move.value
+        for move in moves
+    )
+
+    return PositionSolution(
+        value=_aggregate_values(
+            values
+        ),
+        moves=moves,
+        complete="unknown" not in values,
+    )
+
 def _unknown_root_solution(
     board: list[int],
     columns: int,
@@ -369,9 +498,13 @@ def solve_position(
         )
 
     if max_depth is not None:
-        return _unknown_root_solution(
+        return _bounded_root_solution(
             board,
+            mark,
             columns,
+            rows,
+            inarow,
+            max_depth,
         )
 
     moves: list[MoveAnalysis] = []

@@ -365,3 +365,63 @@ def test_exhaustive_solver_solves_late_standard_board_exactly() -> None:
         ),
         complete=True,
     )
+
+
+def test_bounded_search_preserves_proven_win_with_unknown_alternatives() -> None:
+    board = [0] * 42
+    board[35:42] = [1, 1, 1, 0, 2, 2, 2]
+
+    solution = solve_position(
+        board,
+        mark=1,
+        columns=7,
+        rows=6,
+        inarow=4,
+        max_depth=1,
+    )
+
+    assert solution == PositionSolution(
+        value="win",
+        moves=(
+            MoveAnalysis(0, "unknown"),
+            MoveAnalysis(1, "unknown"),
+            MoveAnalysis(2, "unknown"),
+            MoveAnalysis(3, "win"),
+            MoveAnalysis(4, "unknown"),
+            MoveAnalysis(5, "unknown"),
+            MoveAnalysis(6, "unknown"),
+        ),
+        complete=False,
+    )
+
+
+def test_solver_is_deterministic_for_identical_inputs() -> None:
+    board = [
+        0, 0, 0,
+        0, 2, 2,
+        0, 1, 1,
+    ]
+
+    first = solve_position(
+        board,
+        1,
+        3,
+        3,
+        3,
+        max_depth=4,
+    )
+    second = solve_position(
+        board,
+        1,
+        3,
+        3,
+        3,
+        max_depth=4,
+    )
+
+    assert first == second
+    assert tuple(move.column for move in first.moves) == (
+        0,
+        1,
+        2,
+    )
