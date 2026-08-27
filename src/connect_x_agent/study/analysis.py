@@ -3,7 +3,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 
-from .records import CandidateResult, EpisodeRecord
+from .records import CandidateResult, EpisodeRecord, PositionFeatures
 
 
 @dataclass(frozen=True)
@@ -150,14 +150,8 @@ def analyze_episodes(episodes: tuple[EpisodeRecord, ...]) -> StudyReport:
         corpus=_corpus_summary(episodes),
         opening=_opening_summary(episodes),
         forced_defense=_forced_defense_summary(episodes),
-        counterattack=CounterattackSummary(
-            episodes_with_counterattack=0,
-            events=(),
-        ),
-        forcing=ForcingSummary(
-            episodes_with_forcing_move=0,
-            events=(),
-        ),
+        counterattack=_counterattack_summary(episodes),
+        forcing=_forcing_summary(episodes),
         loss_anatomy=(),
     )
 
@@ -283,6 +277,77 @@ def _forced_defense_summary(
         obeyed_positions=sum(event.obeyed_positions for event in events),
         events=tuple(events),
     )
+
+
+def _counterattack_summary(
+    episodes: tuple[EpisodeRecord, ...],
+) -> CounterattackSummary:
+    events: list[CounterattackEpisode] = []
+
+    for episode in episodes:
+        for ply_index, ply in enumerate(episode.plies[:-1]):
+            if ply.mark != 1 or ply.features_before.p2_fork_moves:
+                continue
+
+            features_after = _features_after(episode, ply_index)
+            if not features_after.p2_fork_moves:
+                continue
+
+            next_p2 = next(
+                (later for later in episode.plies[ply_index + 1 :] if later.mark == 2),
+                None,
+            )
+            events.append(
+                CounterattackEpisode(
+                    episode_id=episode.episode_id,
+                    creating_p1_ply=ply.ply,
+                    fork_moves=features_after.p2_fork_moves,
+                    next_p2_used_fork=(
+                        None
+                        if next_p2 is None
+                        else next_p2.action in features_after.p2_fork_moves
+                    ),
+                    candidate_result=episode.candidate_result,
+                )
+            )
+            break
+
+    return CounterattackSummary(
+        episodes_with_counterattack=len(events),
+        events=tuple(events),
+    )
+
+
+def _forcing_summary(episodes: tuple[EpisodeRecord, ...]) -> ForcingSummary:
+    events: list[ForcingEpisode] = []
+
+    for episode in episodes:
+        for ply_index, ply in enumerate(episode.plies[:-1]):
+            if ply.mark != 2:
+                continue
+
+            replies = _features_after(episode, ply_index).p1_surviving_replies
+            if len(replies) != 1:
+                continue
+
+            events.append(
+                ForcingEpisode(
+                    episode_id=episode.episode_id,
+                    creating_p2_ply=ply.ply,
+                    sole_p1_reply=replies[0],
+                    candidate_result=episode.candidate_result,
+                )
+            )
+            break
+
+    return ForcingSummary(
+        episodes_with_forcing_move=len(events),
+        events=tuple(events),
+    )
+
+
+def _features_after(episode: EpisodeRecord, ply_index: int) -> PositionFeatures:
+    return episode.plies[ply_index + 1].features_before
 
 
 def _first_action(episode: EpisodeRecord, *, mark: int) -> int | None:
