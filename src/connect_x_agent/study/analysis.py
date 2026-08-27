@@ -149,12 +149,7 @@ def analyze_episodes(episodes: tuple[EpisodeRecord, ...]) -> StudyReport:
     return StudyReport(
         corpus=_corpus_summary(episodes),
         opening=_opening_summary(episodes),
-        forced_defense=ForcedDefenseSummary(
-            episodes_with_forced_defense=0,
-            total_positions=0,
-            obeyed_positions=0,
-            events=(),
-        ),
+        forced_defense=_forced_defense_summary(episodes),
         counterattack=CounterattackSummary(
             episodes_with_counterattack=0,
             events=(),
@@ -247,6 +242,46 @@ def _opening_summary(episodes: tuple[EpisodeRecord, ...]) -> OpeningSummary:
         openings=openings,
         first_responses=first_responses,
         responses_by_opening=conditional_responses,
+    )
+
+
+def _forced_defense_summary(
+    episodes: tuple[EpisodeRecord, ...],
+) -> ForcedDefenseSummary:
+    events: list[ForcedDefenseEpisode] = []
+
+    for episode in episodes:
+        forced_positions = [
+            ply
+            for ply in episode.plies
+            if ply.mark == 2 and len(ply.features_before.p2_surviving_replies) == 1
+        ]
+        if not forced_positions:
+            continue
+
+        obeyed_positions = sum(
+            ply.action == ply.features_before.p2_surviving_replies[0]
+            for ply in forced_positions
+        )
+        first = forced_positions[0]
+        events.append(
+            ForcedDefenseEpisode(
+                episode_id=episode.episode_id,
+                first_ply=first.ply,
+                total_positions=len(forced_positions),
+                obeyed_positions=obeyed_positions,
+                first_obeyed=(
+                    first.action == first.features_before.p2_surviving_replies[0]
+                ),
+                candidate_result=episode.candidate_result,
+            )
+        )
+
+    return ForcedDefenseSummary(
+        episodes_with_forced_defense=len(events),
+        total_positions=sum(event.total_positions for event in events),
+        obeyed_positions=sum(event.obeyed_positions for event in events),
+        events=tuple(events),
     )
 
 
