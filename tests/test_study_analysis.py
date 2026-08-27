@@ -13,7 +13,6 @@ from connect_x_agent.study.analysis import (
 )
 from connect_x_agent.study.records import EpisodeRecord, PlyRecord, PositionFeatures
 
-
 COLUMNS = 4
 ROWS = 3
 INAROW = 3
