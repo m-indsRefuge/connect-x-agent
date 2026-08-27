@@ -2,6 +2,7 @@ from dataclasses import replace
 
 import pytest
 
+import connect_x_agent.study.analysis as study_analysis
 from connect_x_agent.study.analysis import (
     ConfigurationCount,
     MoveCount,
@@ -528,3 +529,21 @@ def test_loss_anatomy_reports_mechanical_flags_and_excludes_non_losses() -> None
     assert second.ever_fork_opportunity is False
     assert second.ever_forced_p1_reply is False
     assert all(item.episode_id != 42 for item in report.loss_anatomy)
+
+
+def test_report_serialization_is_deterministic_and_json_ready() -> None:
+    episode = episode_from_actions(
+        episode_id=50,
+        opponent="random",
+        actions=((1, 1), (2, 2)),
+        candidate_result="win",
+    )
+    report = analyze_episodes((episode,))
+
+    serialized = study_analysis.report_to_dict(report)
+
+    assert serialized == study_analysis.report_to_dict(report)
+    assert serialized["corpus"]["episodes"] == 1
+    assert isinstance(serialized["forced_defense"]["events"], list)
+    assert isinstance(serialized["opening"]["openings"], list)
+    assert isinstance(serialized["loss_anatomy"], list)
