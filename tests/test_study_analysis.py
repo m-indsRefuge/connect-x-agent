@@ -1,4 +1,8 @@
+import json
+import runpy
+import sys
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -13,7 +17,12 @@ from connect_x_agent.study.analysis import (
     trajectory_fingerprint,
 )
 from connect_x_agent.study.instrumentation import position_features
-from connect_x_agent.study.records import EpisodeRecord, PlyRecord, PositionFeatures
+from connect_x_agent.study.records import (
+    EpisodeRecord,
+    PlyRecord,
+    PositionFeatures,
+    write_jsonl,
+)
 
 COLUMNS = 4
 ROWS = 3
@@ -547,3 +556,40 @@ def test_report_serialization_is_deterministic_and_json_ready() -> None:
     assert isinstance(serialized["forced_defense"]["events"], list)
     assert isinstance(serialized["opening"]["openings"], list)
     assert isinstance(serialized["loss_anatomy"], list)
+
+
+def test_analysis_script_prints_totals_and_writes_json(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    input_path = tmp_path / "episodes.jsonl"
+    output_path = tmp_path / "analysis.json"
+    episode = episode_from_actions(
+        episode_id=60,
+        opponent="random",
+        actions=((1, 1), (2, 2)),
+        candidate_result="win",
+    )
+    write_jsonl((episode,), input_path)
+
+    script_path = Path(__file__).resolve().parents[1] / "scripts" / "cx_gt_02_analyze.py"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [str(script_path), str(input_path), "--json-output", str(output_path)],
+    )
+
+    runpy.run_path(str(script_path), run_name="__main__")
+
+    stdout = capsys.readouterr().out
+    assert "episodes: 1" in stdout
+    assert "wins: 1" in stdout
+    assert "draws: 0" in stdout
+    assert "losses: 0" in stdout
+    assert "failures: 0" in stdout
+    assert "unique trajectories: 1" in stdout
+    assert "duplicate trajectories: 0" in stdout
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["corpus"]["episodes"] == 1
