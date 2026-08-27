@@ -11,6 +11,7 @@ from connect_x_agent.study.analysis import (
     analyze_episodes,
     trajectory_fingerprint,
 )
+from connect_x_agent.study.instrumentation import position_features
 from connect_x_agent.study.records import EpisodeRecord, PlyRecord, PositionFeatures
 
 COLUMNS = 4
@@ -426,3 +427,36 @@ def test_forcing_records_first_p2_move_that_leaves_one_p1_reply() -> None:
     assert event.creating_p2_ply == 4
     assert event.sole_p1_reply == 0
     assert event.candidate_result == "win"
+
+
+def test_forcing_recomputes_features_after_terminal_last_move() -> None:
+    episode = episode_from_actions(
+        episode_id=31,
+        opponent="random",
+        actions=(
+            (1, 0),
+            (2, 0),
+            (1, 0),
+            (2, 1),
+            (1, 2),
+            (2, 1),
+            (1, 1),
+            (2, 2),
+        ),
+        candidate_result="win",
+    )
+    terminal = episode.plies[-1]
+    expected = position_features(
+        list(terminal.board_after),
+        episode.columns,
+        episode.rows,
+        episode.inarow,
+    ).p1_surviving_replies
+    assert expected == (2,)
+
+    report = analyze_episodes((episode,))
+
+    assert report.forcing.episodes_with_forcing_move == 1
+    event = report.forcing.events[0]
+    assert event.creating_p2_ply == terminal.ply
+    assert event.sole_p1_reply == expected[0]
