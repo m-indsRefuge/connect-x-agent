@@ -552,9 +552,15 @@ def test_report_serialization_is_deterministic_and_json_ready() -> None:
     serialized = study_analysis.report_to_dict(report)
 
     assert serialized == study_analysis.report_to_dict(report)
-    assert serialized["corpus"]["episodes"] == 1
-    assert isinstance(serialized["forced_defense"]["events"], list)
-    assert isinstance(serialized["opening"]["openings"], list)
+    corpus = serialized["corpus"]
+    forced_defense = serialized["forced_defense"]
+    opening = serialized["opening"]
+    assert isinstance(corpus, dict)
+    assert isinstance(forced_defense, dict)
+    assert isinstance(opening, dict)
+    assert corpus["episodes"] == 1
+    assert isinstance(forced_defense["events"], list)
+    assert isinstance(opening["openings"], list)
     assert isinstance(serialized["loss_anatomy"], list)
 
 
