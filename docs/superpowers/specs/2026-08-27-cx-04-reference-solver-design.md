@@ -155,7 +155,7 @@ class PositionSolution:
 
 `moves` contains one entry for every legal root move, in deterministic legal-column order.
 
-`complete` is true exactly when every legal root move has a non-`unknown` value.
+`complete` is true exactly when every legal root move has a non-`unknown` value. Terminal positions have no legal continuation analysis and are explicitly complete.
 
 `value` describes the strongest game-theoretic result currently proven for the player to move, subject to the partial-proof rules below.
 
@@ -231,6 +231,8 @@ solve_position(
 
 `mark` is the player whose turn it is.
 
+`max_depth` must be `None` or a non-negative integer. Negative values are invalid and raise `ValueError`.
+
 ### Exhaustive mode
 
 `max_depth=None` means the solver will recurse until terminal states are reached for every explored branch.
@@ -247,7 +249,9 @@ CX-04 is not required to solve the empty standard 7×6 starting board in practic
 
 A non-negative integer `max_depth` limits the number of future plies searched from the current position.
 
-When the solver reaches depth zero on a nonterminal position, that node is `unknown`.
+When the solver reaches depth zero on a nonterminal recursive node, that node is `unknown`.
+
+At the public root, `max_depth=0` still returns one `MoveAnalysis` for every legal root column, but every such move is `unknown`; the overall position is `unknown` and `complete=False`. No root move is simulated because no future ply is inside the search boundary.
 
 The depth boundary is deterministic. CX-04 does not use elapsed wall-clock time.
 
@@ -257,7 +261,7 @@ This makes repeated calls with the same position and depth reproducible across r
 
 CX-04 preserves proven mathematical facts even when some root moves remain unresolved.
 
-`complete` is true only when no root `MoveAnalysis` has value `unknown`.
+`complete` is true only when no root `MoveAnalysis` has value `unknown`, except that a terminal position with `moves=()` is explicitly complete.
 
 The position-value aggregation rule is:
 
@@ -325,6 +329,8 @@ moves = ()
 
 No search continues below a won board.
 
+A won input board must also pass the last-move consistency check described under position validation; CX-04 must reject a board that can only exist if play continued after an earlier terminal win.
+
 ### Full board without a winner
 
 If the board is full and neither player has a winning line:
@@ -345,7 +351,7 @@ Malformed positions must be rejected rather than represented as `unknown`.
 
 CX-04 will validate strong local invariants before search:
 
-1. `columns`, `rows`, and `inarow` are positive integers and define a meaningful board;
+1. `columns`, `rows`, and `inarow` are positive integers;
 2. board length equals `columns * rows`;
 3. every cell is one of `0`, `1`, or `2`;
 4. `mark` is `1` or `2`;
@@ -353,7 +359,10 @@ CX-04 will validate strong local invariants before search:
 6. piece counts are consistent with alternating play and the supplied side to move;
 7. both players cannot simultaneously have winning lines;
 8. if a winner is present, the winner must be the player who moved immediately before the supplied side to move;
-9. winner/count relationships must be locally consistent with normal alternating play.
+9. winner/count relationships must be consistent with normal alternating play;
+10. a won board must have at least one topmost checker belonging to the winner whose removal produces a gravity-valid predecessor with no winner and with piece counts consistent with the turn before the winning move.
+
+Rule 10 is a local last-move consistency proof. It prevents the reference solver from accepting boards that require moves to have been played after the game should already have ended.
 
 Invalid positions raise `ValueError`.
 
@@ -421,19 +430,22 @@ Required behavior includes:
 5. mixed `WIN`, `DRAW`, and `LOSS` root continuations are classified independently;
 6. child `LOSS` correctly inverts to current-player `WIN`;
 7. child `WIN` correctly inverts to current-player `LOSS`;
-8. a live node at the depth boundary becomes `UNKNOWN`;
-9. a proven winning move can coexist with unresolved alternatives as `WIN` plus `complete=False`;
-10. `DRAW` plus an unresolved alternative yields overall `UNKNOWN`;
-11. a fully exhaustive solution contains no `UNKNOWN` root moves;
-12. a terminal won board returns exact `LOSS`, `complete=True`, and no legal continuation analysis;
-13. a terminal full-board draw returns exact `DRAW`, `complete=True`, and no moves;
-14. invalid board dimensions are rejected;
-15. invalid cell values are rejected;
-16. gravity violations are rejected;
-17. impossible piece counts or side-to-move relationships are rejected;
-18. simultaneous winners are rejected;
-19. winner/turn inconsistencies are rejected;
-20. repeated calls with identical inputs return identical results.
+8. a live recursive node at the depth boundary becomes `UNKNOWN`;
+9. root `max_depth=0` returns every legal root move as `UNKNOWN`, with overall `UNKNOWN` and `complete=False`;
+10. negative `max_depth` is rejected;
+11. a proven winning move can coexist with unresolved alternatives as `WIN` plus `complete=False`;
+12. `DRAW` plus an unresolved alternative yields overall `UNKNOWN`;
+13. a fully exhaustive solution contains no `UNKNOWN` root moves;
+14. a terminal won board returns exact `LOSS`, `complete=True`, and no legal continuation analysis;
+15. a terminal full-board draw returns exact `DRAW`, `complete=True`, and no moves;
+16. invalid board dimensions are rejected;
+17. invalid cell values are rejected;
+18. gravity violations are rejected;
+19. impossible piece counts or side-to-move relationships are rejected;
+20. simultaneous winners are rejected;
+21. winner/turn inconsistencies are rejected;
+22. a won board that requires play after an earlier win is rejected by last-move consistency validation;
+23. repeated calls with identical inputs return identical results.
 
 Small configurations will provide fully exhaustive fixtures because their complete game trees are cheap enough to solve directly.
 
@@ -509,8 +521,10 @@ The following decisions are locked for CX-04:
 - a proven `WIN` may be reported even if other root moves remain unknown;
 - unresolved alternatives prevent a `DRAW` or `LOSS` claim from being treated as exact optimal value;
 - exhaustive and deterministic depth-bounded modes are supported;
+- `max_depth=0` has explicit all-root-unknown semantics;
 - no wall-clock cutoff is used in the reference solver;
 - no heuristics influence exact values;
+- won input states require local last-move consistency;
 - no child strategy tree is embedded in `PositionSolution`;
 - no persistent complete-game tablebase is part of the architecture;
 - final submission compactness comes from algorithms, not memorizing every Connect Four position.
