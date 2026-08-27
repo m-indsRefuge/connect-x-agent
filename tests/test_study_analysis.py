@@ -3,12 +3,12 @@ from dataclasses import replace
 import pytest
 
 from connect_x_agent.study.analysis import (
+    analyze_episodes,
     ConfigurationCount,
     MoveCount,
     OpeningResponseCount,
     OpeningResult,
     OpponentCount,
-    analyze_episodes,
     trajectory_fingerprint,
 )
 from connect_x_agent.study.records import EpisodeRecord, PlyRecord, PositionFeatures
