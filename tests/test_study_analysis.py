@@ -460,3 +460,71 @@ def test_forcing_recomputes_features_after_terminal_last_move() -> None:
     event = report.forcing.events[0]
     assert event.creating_p2_ply == terminal.ply
     assert event.sole_p1_reply == expected[0]
+
+
+def test_loss_anatomy_reports_mechanical_flags_and_excludes_non_losses() -> None:
+    tactical_loss = episode_from_actions(
+        episode_id=40,
+        opponent="random",
+        actions=((1, 1), (2, 2), (1, 0), (2, 3), (1, 1)),
+        candidate_result="loss",
+    )
+    tactical_loss = replace(
+        tactical_loss,
+        plies=(
+            tactical_loss.plies[0],
+            replace(
+                tactical_loss.plies[1],
+                features_before=replace(
+                    tactical_loss.plies[1].features_before,
+                    p2_surviving_replies=(1,),
+                ),
+            ),
+            tactical_loss.plies[2],
+            replace(
+                tactical_loss.plies[3],
+                features_before=replace(
+                    tactical_loss.plies[3].features_before,
+                    p2_fork_moves=(3,),
+                    p2_surviving_replies=(),
+                ),
+            ),
+            replace(
+                tactical_loss.plies[4],
+                features_before=replace(
+                    tactical_loss.plies[4].features_before,
+                    p1_surviving_replies=(0,),
+                ),
+            ),
+        ),
+    )
+    quiet_loss = episode_from_actions(
+        episode_id=41,
+        opponent="random",
+        actions=((1, 1), (2, 2), (1, 0)),
+        candidate_result="loss",
+    )
+    non_loss = episode_from_actions(
+        episode_id=42,
+        opponent="random",
+        actions=((1, 1), (2, 2)),
+        candidate_result="win",
+    )
+
+    report = analyze_episodes((tactical_loss, quiet_loss, non_loss))
+
+    assert len(report.loss_anatomy) == 2
+
+    first, second = report.loss_anatomy
+    assert first.episode_id == 40
+    assert first.first_zero_survival_ply == 4
+    assert first.missed_forced_defense is True
+    assert first.ever_fork_opportunity is True
+    assert first.ever_forced_p1_reply is True
+
+    assert second.episode_id == 41
+    assert second.first_zero_survival_ply is None
+    assert second.missed_forced_defense is False
+    assert second.ever_fork_opportunity is False
+    assert second.ever_forced_p1_reply is False
+    assert all(item.episode_id != 42 for item in report.loss_anatomy)
