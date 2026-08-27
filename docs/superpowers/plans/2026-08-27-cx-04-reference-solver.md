@@ -35,22 +35,16 @@ Before Task 1, create or enter an isolated worktree for `build/cx-04-reference-s
 ```powershell
 Write-Host "`n=== BRANCH ==="
 git branch --show-current
-
 Write-Host "`n=== HEAD ==="
 git rev-parse HEAD
-
 Write-Host "`n=== STATUS ==="
 git status --short
-
 Write-Host "`n=== BASELINE TESTS ==="
 uv run pytest -q
-
 Write-Host "`n=== BASELINE RUFF ==="
 uv run ruff check .
-
 Write-Host "`n=== BASELINE MYPY ==="
 uv run mypy src scripts
-
 Write-Host "`n=== BASELINE DIFF CHECK ==="
 git diff --check
 ```
@@ -464,7 +458,7 @@ def test_solver_rejects_board_requiring_play_after_an_earlier_win() -> None:
         solve_position(board, 2, 3, 3, 3, max_depth=0)
 ```
 
-The final fixture has P1 winning vertically in column 0 and horizontally on the bottom row. The only topmost P1 checker that can be the last move is the top of column 0; removing it leaves the bottom-row win, proving that legal play would already have terminated earlier.
+The final fixture has P1 winning vertically in column 0 and horizontally on the bottom row. The only topmost P1 checker that can be the last move is the top of column 0; removing it leaves the bottom-row win, proving legal play would already have terminated.
 
 - [ ] **Step 2: Verify RED**
 
@@ -666,7 +660,31 @@ def test_exhaustive_solver_proves_forced_loss() -> None:
         ),
         complete=True,
     )
+
+
+def test_exhaustive_solver_solves_late_standard_7x6_position_exactly() -> None:
+    board = [
+        2, 2, 1, 2, 0, 0, 1,
+        2, 1, 2, 1, 1, 1, 2,
+        1, 1, 1, 2, 2, 1, 2,
+        2, 2, 2, 1, 1, 1, 2,
+        1, 2, 1, 2, 2, 2, 1,
+        1, 1, 2, 1, 2, 2, 1,
+    ]
+
+    solution = solve_position(board, 1, 7, 6, 4)
+
+    assert solution == PositionSolution(
+        value="win",
+        moves=(
+            MoveAnalysis(4, "draw"),
+            MoveAnalysis(5, "win"),
+        ),
+        complete=True,
+    )
 ```
+
+The 7×6 fixture is a legal 40-ply nonterminal position with only columns 4 and 5 available. Exhaustive CX-04 search must prove the two remaining continuations exactly: column 4 preserves a draw, while column 5 forces a win for P1.
 
 - [ ] **Step 2: Verify RED**
 
@@ -764,7 +782,7 @@ Update the final branch of `solve_position`:
     return _unknown_root_solution(board, columns)
 ```
 
-This slice solves only exhaustive mode exactly. Positive finite depth remains conservatively `unknown` until Task 5, which gives that behavior a separate RED/GREEN cycle.
+This slice solves exhaustive mode exactly. Positive finite depth remains conservatively `unknown` until Task 5 so bounded semantics receive an independent RED/GREEN cycle.
 
 - [ ] **Step 4: Verify GREEN**
 
@@ -774,7 +792,7 @@ uv run ruff check src/connect_x_agent/search.py tests/test_search.py
 uv run mypy src/connect_x_agent/search.py tests/test_search.py
 ```
 
-Expected: all Task 1-4 tests pass.
+Expected: all Task 1-4 tests pass, including the exact late-game 7×6 fixture.
 
 - [ ] **Step 5: Commit Task 4**
 
@@ -843,8 +861,6 @@ def test_solver_is_deterministic_for_identical_inputs() -> None:
     assert first == second
     assert tuple(move.column for move in first.moves) == (0, 1, 2)
 ```
-
-The 7×6 fixture is shallow by design: column 3 is an immediate proven win, while non-winning root moves reach the depth boundary and remain `unknown`.
 
 - [ ] **Step 2: Verify RED**
 
@@ -933,7 +949,7 @@ def _bounded_root_solution(
     )
 ```
 
-Replace the conservative finite-depth return in `solve_position` with:
+Replace the finite-depth conservative branch in `solve_position` with:
 
 ```python
     if max_depth is None:
@@ -951,8 +967,6 @@ Replace the conservative finite-depth return in `solve_position` with:
 
 - [ ] **Step 4: Verify GREEN and semantic sensitivity**
 
-Run:
-
 ```powershell
 uv run pytest tests/test_search.py -q
 uv run ruff check src/connect_x_agent/search.py tests/test_search.py
@@ -961,8 +975,8 @@ uv run mypy src/connect_x_agent/search.py tests/test_search.py
 
 Then perform two local mutation checks without committing either mutation:
 
-1. Change `_aggregate_values` so `unknown` is tested before `win`. Run `uv run pytest tests/test_search.py -q` and confirm the proven-win partial-proof test fails. Restore the correct line order.
-2. Change `_invert("loss")` to return `"loss"`. Run `uv run pytest tests/test_search.py -q` and confirm an exhaustive fixture fails. Restore the correct inversion.
+1. Change `_aggregate_values` so `unknown` is checked before `win`; rerun the focused suite and confirm the proven-win partial-proof test fails. Restore the correct order.
+2. Change `_invert("loss")` to return `"loss"`; rerun the focused suite and confirm an exhaustive fixture fails. Restore the correct inversion.
 
 Finally rerun:
 
@@ -984,14 +998,14 @@ git commit -m "feat: add CX-04 bounded partial proofs"
 ### Task 6: Acceptance hardening and repository gate
 
 **Files:**
-- Modify: `tests/test_search.py` only if a missing acceptance assertion is identified before the final gate.
+- Modify: `tests/test_search.py`
 - Review: `src/connect_x_agent/search.py`, `tests/test_search.py`, design spec, and this plan.
 
 **Interfaces:**
 - Produces repository-level acceptance evidence only.
 - Does not promote `main`; promotion requires separate explicit authorization.
 
-- [ ] **Step 1: Add one final exact-contract regression test for terminal precedence over zero depth**
+- [ ] **Step 1: Add the final terminal-precedence regression test**
 
 Append:
 
@@ -1010,22 +1024,20 @@ def test_terminal_truth_takes_precedence_over_zero_depth_boundary() -> None:
     assert zero_depth == exhaustive
 ```
 
-This is expected to pass if Task 3 ordering remained intact. If it fails, fix only the ordering defect; do not weaken validation or depth semantics.
+This should pass if Task 3 ordering remains intact. If it fails, correct only the terminal/depth ordering defect.
 
 - [ ] **Step 2: Run the focused CX-04 gate**
 
 ```powershell
 Write-Host "`n=== FOCUSED CX-04 ==="
 uv run pytest tests/test_search.py -q
-
 Write-Host "`n=== FOCUSED RUFF ==="
 uv run ruff check src/connect_x_agent/search.py tests/test_search.py
-
 Write-Host "`n=== FOCUSED MYPY ==="
 uv run mypy src/connect_x_agent/search.py tests/test_search.py
 ```
 
-Expected: all focused tests pass; Ruff and Mypy clean.
+Expected: focused tests pass; Ruff and Mypy clean.
 
 - [ ] **Step 3: Commit the final regression test**
 
@@ -1039,19 +1051,14 @@ git commit -m "test: lock CX-04 terminal precedence"
 ```powershell
 Write-Host "`n=== FOCUSED CX-04 ==="
 uv run pytest tests/test_search.py -q
-
 Write-Host "`n=== FULL PYTEST ==="
 uv run pytest -q
-
 Write-Host "`n=== RUFF ==="
 uv run ruff check .
-
 Write-Host "`n=== MYPY ==="
 uv run mypy src scripts
-
 Write-Host "`n=== DIFF CHECK ==="
 git diff --check
-
 Write-Host "`n=== STATUS ==="
 git status --short
 ```
@@ -1060,15 +1067,11 @@ Expected: focused and full suites pass; Ruff and Mypy clean; diff check has no e
 
 - [ ] **Step 5: Audit scope and non-goals**
 
-Run:
-
 ```powershell
 Write-Host "`n=== CX-04 CHANGED FILES ==="
 git diff --name-only main...HEAD
-
 Write-Host "`n=== CX-04 DIFF STAT ==="
 git diff --stat main...HEAD
-
 Write-Host "`n=== CX-04 HEAD ==="
 git rev-parse HEAD
 ```
