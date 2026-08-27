@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from connect_x_agent.tactical import is_win, legal_columns
+from connect_x_agent.tactical import drop_piece, is_win, legal_columns
 
 GameValue = Literal["win", "draw", "loss", "unknown"]
 
@@ -235,6 +235,73 @@ def _winner(
 
     return winner
 
+
+def _invert_value(
+    value: GameValue,
+) -> GameValue:
+    if value == "win":
+        return "loss"
+
+    if value == "loss":
+        return "win"
+
+    return value
+
+
+def _solve_exact_value(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+) -> GameValue:
+    legal = legal_columns(
+        board,
+        columns,
+    )
+
+    if not legal:
+        return "draw"
+
+    move_values: list[GameValue] = []
+
+    for column in legal:
+        child = drop_piece(
+            board,
+            column,
+            mark,
+            columns,
+            rows,
+        )
+
+        if is_win(
+            child,
+            mark,
+            columns,
+            rows,
+            inarow,
+        ):
+            move_value: GameValue = "win"
+        else:
+            child_value = _solve_exact_value(
+                child,
+                3 - mark,
+                columns,
+                rows,
+                inarow,
+            )
+            move_value = _invert_value(
+                child_value
+            )
+
+        move_values.append(
+            move_value
+        )
+
+    return _aggregate_values(
+        tuple(move_values)
+    )
+
 def _unknown_root_solution(
     board: list[int],
     columns: int,
@@ -255,6 +322,7 @@ def _unknown_root_solution(
         moves=moves,
         complete=False,
     )
+
 
 
 
@@ -300,7 +368,59 @@ def solve_position(
             complete=True,
         )
 
-    return _unknown_root_solution(
-        board,
-        columns,
+    if max_depth is not None:
+        return _unknown_root_solution(
+            board,
+            columns,
+        )
+
+    moves: list[MoveAnalysis] = []
+
+    for column in legal:
+        child = drop_piece(
+            board,
+            column,
+            mark,
+            columns,
+            rows,
+        )
+
+        if is_win(
+            child,
+            mark,
+            columns,
+            rows,
+            inarow,
+        ):
+            move_value: GameValue = "win"
+        else:
+            child_value = _solve_exact_value(
+                child,
+                3 - mark,
+                columns,
+                rows,
+                inarow,
+            )
+            move_value = _invert_value(
+                child_value
+            )
+
+        moves.append(
+            MoveAnalysis(
+                column=column,
+                value=move_value,
+            )
+        )
+
+    move_tuple = tuple(moves)
+
+    return PositionSolution(
+        value=_aggregate_values(
+            tuple(
+                move.value
+                for move in move_tuple
+            )
+        ),
+        moves=move_tuple,
+        complete=True,
     )

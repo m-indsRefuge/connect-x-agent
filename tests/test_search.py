@@ -240,3 +240,128 @@ def test_solver_rejects_board_requiring_play_after_an_earlier_win() -> None:
             inarow=3,
             max_depth=0,
         )
+
+
+def test_exhaustive_small_board_is_a_complete_draw() -> None:
+    solution = solve_position(
+        board=[0, 0],
+        mark=1,
+        columns=2,
+        rows=1,
+        inarow=2,
+    )
+
+    assert solution == PositionSolution(
+        value="draw",
+        moves=(
+            MoveAnalysis(0, "draw"),
+            MoveAnalysis(1, "draw"),
+        ),
+        complete=True,
+    )
+
+
+def test_exhaustive_solver_classifies_mixed_root_values_independently() -> None:
+    board = [
+        0, 0, 0,
+        0, 2, 2,
+        0, 1, 1,
+    ]
+
+    solution = solve_position(
+        board,
+        mark=1,
+        columns=3,
+        rows=3,
+        inarow=3,
+    )
+
+    assert solution == PositionSolution(
+        value="win",
+        moves=(
+            MoveAnalysis(0, "win"),
+            MoveAnalysis(1, "loss"),
+            MoveAnalysis(2, "draw"),
+        ),
+        complete=True,
+    )
+
+
+def test_exhaustive_solver_preserves_multiple_winning_moves() -> None:
+    board = [
+        0, 0, 0,
+        0, 0, 2,
+        0, 0, 1,
+    ]
+
+    solution = solve_position(
+        board,
+        mark=1,
+        columns=3,
+        rows=3,
+        inarow=3,
+    )
+
+    assert solution == PositionSolution(
+        value="win",
+        moves=(
+            MoveAnalysis(0, "win"),
+            MoveAnalysis(1, "win"),
+            MoveAnalysis(2, "draw"),
+        ),
+        complete=True,
+    )
+
+
+def test_exhaustive_solver_proves_forced_loss() -> None:
+    board = [
+        0, 0, 1,
+        0, 1, 2,
+        0, 2, 1,
+    ]
+
+    solution = solve_position(
+        board,
+        mark=2,
+        columns=3,
+        rows=3,
+        inarow=3,
+    )
+
+    assert solution == PositionSolution(
+        value="loss",
+        moves=(
+            MoveAnalysis(0, "loss"),
+            MoveAnalysis(1, "loss"),
+        ),
+        complete=True,
+    )
+
+
+def test_exhaustive_solver_solves_late_standard_board_exactly() -> None:
+    board = [
+        2, 1, 0, 1, 0, 1, 0,
+        2, 1, 0, 2, 0, 2, 2,
+        1, 1, 0, 1, 1, 1, 2,
+        2, 2, 2, 1, 2, 1, 1,
+        2, 1, 2, 2, 1, 1, 2,
+        2, 1, 1, 1, 2, 2, 2,
+    ]
+
+    solution = solve_position(
+        board,
+        mark=1,
+        columns=7,
+        rows=6,
+        inarow=4,
+    )
+
+    assert solution == PositionSolution(
+        value="win",
+        moves=(
+            MoveAnalysis(2, "win"),
+            MoveAnalysis(4, "win"),
+            MoveAnalysis(6, "loss"),
+        ),
+        complete=True,
+    )
