@@ -425,3 +425,33 @@ def test_solver_is_deterministic_for_identical_inputs() -> None:
         1,
         2,
     )
+
+
+def test_terminal_truth_takes_precedence_over_zero_depth_boundary() -> None:
+    board = [
+        0, 0, 2, 0,
+        1, 1, 1, 2,
+    ]
+
+    zero_depth = solve_position(
+        board,
+        2,
+        4,
+        2,
+        3,
+        max_depth=0,
+    )
+    exhaustive = solve_position(
+        board,
+        2,
+        4,
+        2,
+        3,
+    )
+
+    assert zero_depth == PositionSolution(
+        "loss",
+        (),
+        True,
+    )
+    assert zero_depth == exhaustive
