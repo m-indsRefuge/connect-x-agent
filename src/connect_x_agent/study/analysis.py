@@ -147,13 +147,17 @@ def trajectory_fingerprint(episode: EpisodeRecord) -> str:
 
 
 def analyze_episodes(episodes: tuple[EpisodeRecord, ...]) -> StudyReport:
+    forced_defense = _forced_defense_summary(episodes)
+    counterattack = _counterattack_summary(episodes)
+    forcing = _forcing_summary(episodes)
+
     return StudyReport(
         corpus=_corpus_summary(episodes),
         opening=_opening_summary(episodes),
-        forced_defense=_forced_defense_summary(episodes),
-        counterattack=_counterattack_summary(episodes),
-        forcing=_forcing_summary(episodes),
-        loss_anatomy=(),
+        forced_defense=forced_defense,
+        counterattack=counterattack,
+        forcing=forcing,
+        loss_anatomy=_loss_anatomy(episodes, counterattack, forcing),
     )
 
 
@@ -345,6 +349,50 @@ def _forcing_summary(episodes: tuple[EpisodeRecord, ...]) -> ForcingSummary:
         episodes_with_forcing_move=len(events),
         events=tuple(events),
     )
+
+
+def _loss_anatomy(
+    episodes: tuple[EpisodeRecord, ...],
+    counterattack: CounterattackSummary,
+    forcing: ForcingSummary,
+) -> tuple[LossAnatomy, ...]:
+    counterattack_episode_ids = {event.episode_id for event in counterattack.events}
+    forcing_episode_ids = {event.episode_id for event in forcing.events}
+    losses: list[LossAnatomy] = []
+
+    for episode in episodes:
+        if episode.candidate_result != "loss":
+            continue
+
+        p2_plies = tuple(ply for ply in episode.plies if ply.mark == 2)
+        first_zero = next(
+            (
+                ply.ply
+                for ply in p2_plies
+                if len(ply.features_before.p2_surviving_replies) == 0
+            ),
+            None,
+        )
+        missed_forced_defense = any(
+            len(ply.features_before.p2_surviving_replies) == 1
+            and ply.action != ply.features_before.p2_surviving_replies[0]
+            for ply in p2_plies
+        )
+        pre_move_fork = any(ply.features_before.p2_fork_moves for ply in p2_plies)
+
+        losses.append(
+            LossAnatomy(
+                episode_id=episode.episode_id,
+                first_zero_survival_ply=first_zero,
+                missed_forced_defense=missed_forced_defense,
+                ever_fork_opportunity=(
+                    pre_move_fork or episode.episode_id in counterattack_episode_ids
+                ),
+                ever_forced_p1_reply=episode.episode_id in forcing_episode_ids,
+            )
+        )
+
+    return tuple(losses)
 
 
 def _features_after(episode: EpisodeRecord, ply_index: int) -> PositionFeatures:
