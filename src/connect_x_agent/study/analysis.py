@@ -3,6 +3,7 @@ import json
 from collections import Counter
 from dataclasses import dataclass
 
+from .instrumentation import position_features
 from .records import CandidateResult, EpisodeRecord, PositionFeatures
 
 
@@ -285,7 +286,7 @@ def _counterattack_summary(
     events: list[CounterattackEpisode] = []
 
     for episode in episodes:
-        for ply_index, ply in enumerate(episode.plies[:-1]):
+        for ply_index, ply in enumerate(episode.plies):
             if ply.mark != 1 or ply.features_before.p2_fork_moves:
                 continue
 
@@ -322,7 +323,7 @@ def _forcing_summary(episodes: tuple[EpisodeRecord, ...]) -> ForcingSummary:
     events: list[ForcingEpisode] = []
 
     for episode in episodes:
-        for ply_index, ply in enumerate(episode.plies[:-1]):
+        for ply_index, ply in enumerate(episode.plies):
             if ply.mark != 2:
                 continue
 
@@ -347,7 +348,16 @@ def _forcing_summary(episodes: tuple[EpisodeRecord, ...]) -> ForcingSummary:
 
 
 def _features_after(episode: EpisodeRecord, ply_index: int) -> PositionFeatures:
-    return episode.plies[ply_index + 1].features_before
+    if ply_index + 1 < len(episode.plies):
+        return episode.plies[ply_index + 1].features_before
+
+    ply = episode.plies[ply_index]
+    return position_features(
+        list(ply.board_after),
+        episode.columns,
+        episode.rows,
+        episode.inarow,
+    )
 
 
 def _first_action(episode: EpisodeRecord, *, mark: int) -> int | None:
