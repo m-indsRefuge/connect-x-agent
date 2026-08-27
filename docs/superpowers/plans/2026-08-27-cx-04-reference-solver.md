@@ -4,7 +4,7 @@
 
 **Goal:** Build a correctness-first recursive Connect X position solver that classifies every legal root move as `win`, `draw`, `loss`, or `unknown`, with exact terminal semantics, deterministic depth bounds, and strict local-position validation.
 
-**Architecture:** Add a single focused solver module, `src/connect_x_agent/search.py`, that reuses `legal_columns`, `drop_piece`, and `is_win` from `tactical.py`. The module owns immutable result contracts, validation, player-relative minimax recursion, root move classification, and bounded `unknown` semantics; it intentionally contains no move-selection policy, alpha-beta pruning, cache, symmetry, heuristic evaluation, timing, or Kaggle-facing integration.
+**Architecture:** Add one focused solver module, `src/connect_x_agent/search.py`, which reuses `legal_columns`, `drop_piece`, and `is_win` from `tactical.py`. The module owns immutable result contracts, validation, player-relative minimax recursion, root move classification, and bounded `unknown` semantics; it intentionally contains no move-selection policy, alpha-beta pruning, cache, symmetry, heuristic evaluation, timing, or Kaggle-facing integration.
 
 **Tech Stack:** Python 3.12+, pytest 9.1+, Ruff 0.16+, Mypy 2.3+, existing `connect_x_agent.tactical` mechanics.
 
@@ -13,24 +13,24 @@
 ## Global Constraints
 
 - Work only on branch `build/cx-04-reference-solver` in an isolated worktree created at execution time.
-- Preserve all unrelated local and untracked files; never reset, clean, stash, overwrite, or delete unrelated work.
-- Implementation scope is limited to `src/connect_x_agent/search.py` and `tests/test_search.py` unless a concrete integration blocker is demonstrated before modifying another source file.
+- Preserve unrelated local and untracked files; never reset, clean, stash, overwrite, or delete unrelated work.
+- Implementation scope is `src/connect_x_agent/search.py` and `tests/test_search.py`. If another source path appears necessary, stop and demonstrate the integration blocker before modifying it.
 - Reuse `legal_columns(board, columns)`, `drop_piece(board, column, mark, columns, rows)`, and `is_win(board, mark, columns, rows, inarow)` from `src/connect_x_agent/tactical.py`.
-- Values are always player-relative: `win`, `draw`, `loss`, `unknown`.
-- Every legal root move must receive its own `MoveAnalysis`; CX-04 must not expose a `best_move()` function.
+- Values are player-relative: `win`, `draw`, `loss`, `unknown`.
+- Every legal root move receives its own `MoveAnalysis`; CX-04 exposes no `best_move()` function.
 - `unknown` means valid but unproven under the current depth bound; invalid input raises `ValueError`.
-- `max_depth=None` means exhaustive recursion to terminal states; `max_depth` must otherwise be a non-negative integer.
-- At the public root, `max_depth=0` returns every legal root move as `unknown` without simulating any root move, unless the input position is already terminal.
-- A proven root `win` may make the overall value `win` even when other root moves remain `unknown`; unresolved moves prevent an exact `draw` or `loss` claim.
-- No heuristics, randomness, elapsed-time cutoff, alpha-beta pruning, caching, symmetry, bitboards, opening book, persistent tablebase, or competition action policy in CX-04.
-- TDD is mandatory: RED first, then minimal GREEN, focused test, full relevant test file, and commit at every task boundary.
+- `max_depth=None` means exhaustive recursion to terminal states. Otherwise `max_depth` is a non-negative integer.
+- At the public root, `max_depth=0` returns every legal root move as `unknown` without simulating a root move, unless the input position is already terminal.
+- A proven root `win` makes the overall value `win` even when other root moves remain `unknown`; unresolved moves prevent an exact `draw` or `loss` claim.
+- No heuristics, randomness, elapsed-time cutoff, alpha-beta pruning, caching, symmetry, bitboards, opening books, persistent tablebases, or competition action policy in CX-04.
+- TDD is mandatory: RED first, minimal GREEN, focused verification, then commit at each task boundary.
 - Final acceptance requires focused tests, full pytest, Ruff, Mypy, `git diff --check`, and changed-file scope review.
 
 ---
 
 ## Execution Preflight
 
-Before Task 1, use the worktree workflow to create or enter an isolated worktree for `build/cx-04-reference-solver`. Then run:
+Before Task 1, create or enter an isolated worktree for `build/cx-04-reference-solver` using the repository worktree workflow. Then run:
 
 ```powershell
 Write-Host "`n=== BRANCH ==="
@@ -55,14 +55,14 @@ Write-Host "`n=== BASELINE DIFF CHECK ==="
 git diff --check
 ```
 
-Expected baseline before implementation:
+Expected baseline:
 
-- branch is `build/cx-04-reference-solver`;
-- the design spec and this plan are already committed;
-- implementation paths `src/connect_x_agent/search.py` and `tests/test_search.py` do not yet exist;
-- existing repository tests, Ruff, Mypy, and diff check pass.
+- branch `build/cx-04-reference-solver`;
+- approved design spec and this plan already committed;
+- no `src/connect_x_agent/search.py` or `tests/test_search.py` yet;
+- existing repository tests, Ruff, Mypy, and diff check green.
 
-If the baseline is not green, stop and diagnose before Task 1.
+If any baseline gate fails, stop and diagnose before implementation.
 
 ---
 
@@ -73,16 +73,14 @@ If the baseline is not green, stop and diagnose before Task 1.
 - Create: `src/connect_x_agent/search.py`
 
 **Interfaces:**
-- Consumes: no new CX-04 interfaces; standard-library `dataclass` and `Literal` only.
-- Produces:
-  - `GameValue = Literal["win", "draw", "loss", "unknown"]`
-  - `MoveAnalysis(column: int, value: GameValue)`
-  - `PositionSolution(value: GameValue, moves: tuple[MoveAnalysis, ...], complete: bool)`
-  - internal `_aggregate_values(values: tuple[GameValue, ...]) -> GameValue`
+- Produces `GameValue = Literal["win", "draw", "loss", "unknown"]`.
+- Produces `MoveAnalysis(column: int, value: GameValue)`.
+- Produces `PositionSolution(value: GameValue, moves: tuple[MoveAnalysis, ...], complete: bool)`.
+- Produces internal `_aggregate_values(values: tuple[GameValue, ...]) -> GameValue`.
 
 - [ ] **Step 1: Write the failing contract tests**
 
-Create `tests/test_search.py` with:
+Create `tests/test_search.py`:
 
 ```python
 from dataclasses import FrozenInstanceError
@@ -122,19 +120,17 @@ def test_value_aggregation_preserves_partial_proof_semantics() -> None:
     assert _aggregate_values(("loss", "loss", "loss")) == "loss"
 ```
 
-- [ ] **Step 2: Run the focused tests and verify RED**
-
-Run:
+- [ ] **Step 2: Verify RED**
 
 ```powershell
 uv run pytest tests/test_search.py -q
 ```
 
-Expected: collection/import failure because `connect_x_agent.search` does not exist.
+Expected: import/collection failure because `connect_x_agent.search` does not exist.
 
 - [ ] **Step 3: Add the minimal contracts and aggregation implementation**
 
-Create `src/connect_x_agent/search.py` with:
+Create `src/connect_x_agent/search.py`:
 
 ```python
 from dataclasses import dataclass
@@ -166,11 +162,9 @@ def _aggregate_values(values: tuple[GameValue, ...]) -> GameValue:
     return "loss"
 ```
 
-The helper is deliberately small and exact. It encodes the approved partial-proof order `WIN > UNKNOWN > DRAW > LOSS` rather than a numeric heuristic.
+This encodes the approved proof order `WIN > UNKNOWN > DRAW > LOSS`; it is not a numeric heuristic.
 
-- [ ] **Step 4: Run the focused tests and verify GREEN**
-
-Run:
+- [ ] **Step 4: Verify GREEN**
 
 ```powershell
 uv run pytest tests/test_search.py -q
@@ -189,27 +183,22 @@ git commit -m "feat: add CX-04 solver result contracts"
 
 ---
 
-### Task 2: Structural position validation and zero-depth root semantics
+### Task 2: Structural validation and zero-depth root behavior
 
 **Files:**
 - Modify: `src/connect_x_agent/search.py`
 - Modify: `tests/test_search.py`
 
 **Interfaces:**
-- Consumes:
-  - `MoveAnalysis`, `PositionSolution`, `_aggregate_values`
-  - `legal_columns(board: list[int], columns: int) -> list[int]` from `connect_x_agent.tactical`
-- Produces:
-  - public `solve_position(board: list[int], mark: int, columns: int, rows: int, inarow: int, max_depth: int | None = None) -> PositionSolution`
-  - internal structural validation helpers
+- Consumes `legal_columns(board: list[int], columns: int) -> list[int]` from `connect_x_agent.tactical`.
+- Produces public `solve_position(board: list[int], mark: int, columns: int, rows: int, inarow: int, max_depth: int | None = None) -> PositionSolution`.
+- Produces internal structural validation helpers.
 
-- [ ] **Step 1: Add failing tests for valid zero-depth behavior and malformed structure**
+- [ ] **Step 1: Add failing zero-depth and malformed-input tests**
 
-Append to `tests/test_search.py`:
+Extend the existing import in `tests/test_search.py` to include `solve_position`, then append:
 
 ```python
-from connect_x_agent.search import solve_position
-
 
 def test_zero_depth_classifies_every_legal_root_move_as_unknown() -> None:
     solution = solve_position(
@@ -289,9 +278,7 @@ def test_solver_rejects_turn_count_mismatch() -> None:
         solve_position(board, 1, 3, 3, 3, max_depth=0)
 ```
 
-- [ ] **Step 2: Run the new focused tests and verify RED**
-
-Run:
+- [ ] **Step 2: Verify RED**
 
 ```powershell
 uv run pytest tests/test_search.py -q
@@ -299,9 +286,9 @@ uv run pytest tests/test_search.py -q
 
 Expected: failures because `solve_position` and validation do not exist.
 
-- [ ] **Step 3: Implement structural validation and the zero-depth shell**
+- [ ] **Step 3: Implement structural validation and a conservative nonterminal shell**
 
-Extend `search.py` with imports and helpers equivalent to:
+Add:
 
 ```python
 from connect_x_agent.tactical import legal_columns
@@ -360,6 +347,18 @@ def _validate_structure(
         raise ValueError("piece counts are inconsistent with side to move")
 
 
+def _unknown_root_solution(board: list[int], columns: int) -> PositionSolution:
+    moves = tuple(
+        MoveAnalysis(column, "unknown")
+        for column in legal_columns(board, columns)
+    )
+    return PositionSolution(
+        value="unknown",
+        moves=moves,
+        complete=False,
+    )
+
+
 def solve_position(
     board: list[int],
     mark: int,
@@ -369,24 +368,12 @@ def solve_position(
     max_depth: int | None = None,
 ) -> PositionSolution:
     _validate_structure(board, mark, columns, rows, inarow, max_depth)
-    legal = legal_columns(board, columns)
-
-    if max_depth == 0:
-        moves = tuple(MoveAnalysis(column, "unknown") for column in legal)
-        return PositionSolution(
-            value="unknown",
-            moves=moves,
-            complete=False,
-        )
-
-    raise NotImplementedError("recursive search is added in later CX-04 tasks")
+    return _unknown_root_solution(board, columns)
 ```
 
-The temporary `NotImplementedError` is permitted only inside this intermediate TDD slice and must be removed in Task 4. No final CX-04 behavior may retain it.
+At this slice the solver is deliberately conservative for every valid nonterminal position. It asserts only `unknown`, which is mathematically safe. Subsequent RED tests require exact terminal and recursive behavior and replace this conservative result incrementally.
 
-- [ ] **Step 4: Verify Task 2 GREEN**
-
-Run:
+- [ ] **Step 4: Verify GREEN**
 
 ```powershell
 uv run pytest tests/test_search.py -q
@@ -412,12 +399,9 @@ git commit -m "feat: validate CX-04 solver inputs"
 - Modify: `tests/test_search.py`
 
 **Interfaces:**
-- Consumes:
-  - `_validate_structure`, `_counts_match_turn`, `_gravity_is_valid`
-  - `is_win(...)` and `legal_columns(...)` from `connect_x_agent.tactical`
-- Produces:
-  - exact terminal `loss` and `draw` `PositionSolution` values
-  - winner-state validation including simultaneous-winner, winner/turn, and local last-move consistency checks
+- Consumes `_validate_structure`, `_counts_match_turn`, `_gravity_is_valid`.
+- Consumes `is_win(...)` and `legal_columns(...)` from `connect_x_agent.tactical`.
+- Produces exact terminal `loss` and `draw` values and winner-state validation.
 
 - [ ] **Step 1: Add failing terminal and winner-integrity tests**
 
@@ -433,11 +417,7 @@ def test_terminal_previous_player_win_is_exact_loss() -> None:
 
     solution = solve_position(board, 2, 4, 2, 3, max_depth=0)
 
-    assert solution == PositionSolution(
-        value="loss",
-        moves=(),
-        complete=True,
-    )
+    assert solution == PositionSolution("loss", (), True)
 
 
 def test_terminal_full_board_without_winner_is_exact_draw() -> None:
@@ -450,11 +430,7 @@ def test_terminal_full_board_without_winner_is_exact_draw() -> None:
         max_depth=0,
     )
 
-    assert solution == PositionSolution(
-        value="draw",
-        moves=(),
-        complete=True,
-    )
+    assert solution == PositionSolution("draw", (), True)
 
 
 def test_solver_rejects_simultaneous_winners() -> None:
@@ -488,23 +464,21 @@ def test_solver_rejects_board_requiring_play_after_an_earlier_win() -> None:
         solve_position(board, 2, 3, 3, 3, max_depth=0)
 ```
 
-The final fixture has P1 winning both vertically in column 0 and horizontally on the bottom row. The only topmost P1 checker that could be the last move is the top of column 0; removing it leaves the bottom-row win intact. Therefore the board cannot represent a legal game that stopped immediately when the first win occurred.
+The final fixture has P1 winning vertically in column 0 and horizontally on the bottom row. The only topmost P1 checker that can be the last move is the top of column 0; removing it leaves the bottom-row win, proving that legal play would already have terminated earlier.
 
-- [ ] **Step 2: Run the new tests and verify RED**
+- [ ] **Step 2: Verify RED**
 
 ```powershell
 uv run pytest tests/test_search.py -q
 ```
 
-Expected: terminal positions still receive the Task 2 zero-depth shell result or winner-integrity tests do not reject invalid states.
+Expected: terminal boards still return the conservative `unknown` result, and invalid winner states are not fully rejected.
 
 - [ ] **Step 3: Implement winner validation and terminal handling**
 
-Import `is_win` and add helpers equivalent to:
+Change the tactical import to include `is_win`, then add:
 
 ```python
-from connect_x_agent.tactical import is_win, legal_columns
-
 
 def _has_consistent_last_move(
     board: list[int],
@@ -564,24 +538,22 @@ def _winner(
     return winner
 ```
 
-Then change `solve_position` ordering so terminal truth is evaluated before the `max_depth == 0` branch:
+Then make `solve_position` evaluate terminal truth before returning the conservative nonterminal result:
 
 ```python
-    winner = _winner(board, mark, columns, rows, inarow)
-    if winner is not None:
+    _validate_structure(board, mark, columns, rows, inarow, max_depth)
+
+    if _winner(board, mark, columns, rows, inarow) is not None:
         return PositionSolution("loss", (), True)
 
     legal = legal_columns(board, columns)
     if not legal:
         return PositionSolution("draw", (), True)
 
-    if max_depth == 0:
-        ...
+    return _unknown_root_solution(board, columns)
 ```
 
-Do not recurse below terminal input boards.
-
-- [ ] **Step 4: Verify Task 3 GREEN**
+- [ ] **Step 4: Verify GREEN**
 
 ```powershell
 uv run pytest tests/test_search.py -q
@@ -600,23 +572,19 @@ git commit -m "feat: enforce CX-04 terminal position integrity"
 
 ---
 
-### Task 4: Exact recursive minimax and complete root move classification
+### Task 4: Exhaustive recursive minimax and complete root classification
 
 **Files:**
 - Modify: `src/connect_x_agent/search.py`
 - Modify: `tests/test_search.py`
 
 **Interfaces:**
-- Consumes:
-  - result contracts and aggregation algebra
-  - validated nonterminal root positions
-  - `drop_piece`, `is_win`, `legal_columns`
-- Produces:
-  - internal `_invert(value: GameValue) -> GameValue`
-  - internal recursive `_solve_value(...) -> GameValue`
-  - complete exhaustive `solve_position(...)` behavior when `max_depth=None`
+- Consumes `drop_piece`, `is_win`, and `legal_columns` from `connect_x_agent.tactical`.
+- Produces internal `_invert(value: GameValue) -> GameValue`.
+- Produces internal exhaustive `_solve_exact_value(...) -> GameValue`.
+- Produces exact `solve_position(..., max_depth=None)` behavior.
 
-- [ ] **Step 1: Add failing exhaustive-solver fixtures**
+- [ ] **Step 1: Add failing exhaustive fixtures**
 
 Append:
 
@@ -700,23 +668,19 @@ def test_exhaustive_solver_proves_forced_loss() -> None:
     )
 ```
 
-These fixtures are small enough for transparent exhaustive search and collectively prove draw, mixed values, multiple optimal wins, and forced loss.
-
-- [ ] **Step 2: Run the new tests and verify RED**
+- [ ] **Step 2: Verify RED**
 
 ```powershell
 uv run pytest tests/test_search.py -q
 ```
 
-Expected: the Task 2 temporary `NotImplementedError` is reached for positive/unbounded search.
+Expected: exhaustive positions still return root moves as `unknown`.
 
-- [ ] **Step 3: Implement the recursive player-relative solver**
+- [ ] **Step 3: Implement exact player-relative recursion**
 
-Import `drop_piece` and implement:
+Change the tactical import to include `drop_piece`, then add:
 
 ```python
-from connect_x_agent.tactical import drop_piece, is_win, legal_columns
-
 
 def _invert(value: GameValue) -> GameValue:
     if value == "win":
@@ -726,68 +690,60 @@ def _invert(value: GameValue) -> GameValue:
     return value
 
 
-def _solve_value(
+def _solve_exact_value(
     board: list[int],
     mark: int,
     columns: int,
     rows: int,
     inarow: int,
-    remaining_depth: int | None,
 ) -> GameValue:
     legal = legal_columns(board, columns)
     if not legal:
         return "draw"
-    if remaining_depth == 0:
-        return "unknown"
 
-    child_depth = (
-        None
-        if remaining_depth is None
-        else remaining_depth - 1
-    )
-    move_values: list[GameValue] = []
-
-    for column in legal:
-        candidate = drop_piece(board, column, mark, columns, rows)
-        if is_win(candidate, mark, columns, rows, inarow):
-            move_value: GameValue = "win"
-        else:
-            child_value = _solve_value(
-                candidate,
-                3 - mark,
-                columns,
-                rows,
-                inarow,
-                child_depth,
-            )
-            move_value = _invert(child_value)
-
-        move_values.append(move_value)
-
-    return _aggregate_values(tuple(move_values))
-```
-
-Replace the temporary `NotImplementedError` in `solve_position` with complete root classification:
-
-```python
-    child_depth = None if max_depth is None else max_depth - 1
-    analyses: list[MoveAnalysis] = []
-
+    values: list[GameValue] = []
     for column in legal:
         candidate = drop_piece(board, column, mark, columns, rows)
         if is_win(candidate, mark, columns, rows, inarow):
             value: GameValue = "win"
         else:
-            child_value = _solve_value(
-                candidate,
-                3 - mark,
-                columns,
-                rows,
-                inarow,
-                child_depth,
+            value = _invert(
+                _solve_exact_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                )
             )
-            value = _invert(child_value)
+        values.append(value)
 
+    return _aggregate_values(tuple(values))
+
+
+def _exact_root_solution(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+) -> PositionSolution:
+    analyses: list[MoveAnalysis] = []
+
+    for column in legal_columns(board, columns):
+        candidate = drop_piece(board, column, mark, columns, rows)
+        if is_win(candidate, mark, columns, rows, inarow):
+            value: GameValue = "win"
+        else:
+            value = _invert(
+                _solve_exact_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                )
+            )
         analyses.append(MoveAnalysis(column, value))
 
     moves = tuple(analyses)
@@ -795,13 +751,22 @@ Replace the temporary `NotImplementedError` in `solve_position` with complete ro
     return PositionSolution(
         value=_aggregate_values(values),
         moves=moves,
-        complete="unknown" not in values,
+        complete=True,
     )
 ```
 
-Important: even when one root move is proven `win`, continue classifying every remaining root move. Internal nodes may aggregate their child values normally because only the root contract requires preservation of every legal move classification.
+Update the final branch of `solve_position`:
 
-- [ ] **Step 4: Verify exhaustive solver GREEN**
+```python
+    if max_depth is None:
+        return _exact_root_solution(board, mark, columns, rows, inarow)
+
+    return _unknown_root_solution(board, columns)
+```
+
+This slice solves only exhaustive mode exactly. Positive finite depth remains conservatively `unknown` until Task 5, which gives that behavior a separate RED/GREEN cycle.
+
+- [ ] **Step 4: Verify GREEN**
 
 ```powershell
 uv run pytest tests/test_search.py -q
@@ -809,28 +774,29 @@ uv run ruff check src/connect_x_agent/search.py tests/test_search.py
 uv run mypy src/connect_x_agent/search.py tests/test_search.py
 ```
 
-Expected: all Task 1-4 tests pass; the temporary `NotImplementedError` no longer exists.
+Expected: all Task 1-4 tests pass.
 
 - [ ] **Step 5: Commit Task 4**
 
 ```powershell
 git add src/connect_x_agent/search.py tests/test_search.py
-git commit -m "feat: add CX-04 recursive reference minimax"
+git commit -m "feat: add CX-04 exhaustive reference minimax"
 ```
 
 ---
 
-### Task 5: Bounded partial proofs, deterministic results, and 7x6 reference behavior
+### Task 5: Deterministic bounded search and partial proofs
 
 **Files:**
+- Modify: `src/connect_x_agent/search.py`
 - Modify: `tests/test_search.py`
-- Modify only if a failing test demonstrates a semantic defect: `src/connect_x_agent/search.py`
 
 **Interfaces:**
-- Consumes: complete `solve_position` implementation from Task 4.
-- Produces: acceptance evidence for bounded `unknown`, proven-win-plus-unknown semantics, deterministic output, and standard-board geometry support.
+- Consumes `_invert`, `_aggregate_values`, root validation, and tactical mechanics.
+- Produces depth-aware internal `_solve_bounded_value(...) -> GameValue`.
+- Completes public finite-depth semantics, including `WIN + complete=False` when a winning root move is proven while alternatives remain unresolved.
 
-- [ ] **Step 1: Add failing-or-confirming tests for bounded partial proofs**
+- [ ] **Step 1: Add failing bounded-search tests**
 
 Append:
 
@@ -864,10 +830,6 @@ def test_bounded_search_preserves_proven_win_with_unknown_alternatives() -> None
     )
 
 
-def test_draw_plus_unknown_cannot_be_promoted_to_draw() -> None:
-    assert _aggregate_values(("loss", "draw", "unknown")) == "unknown"
-
-
 def test_solver_is_deterministic_for_identical_inputs() -> None:
     board = [
         0, 0, 0,
@@ -875,90 +837,204 @@ def test_solver_is_deterministic_for_identical_inputs() -> None:
         0, 1, 1,
     ]
 
-    first = solve_position(board, 1, 3, 3, 3)
-    second = solve_position(board, 1, 3, 3, 3)
+    first = solve_position(board, 1, 3, 3, 3, max_depth=4)
+    second = solve_position(board, 1, 3, 3, 3, max_depth=4)
 
     assert first == second
     assert tuple(move.column for move in first.moves) == (0, 1, 2)
 ```
 
-The 7×6 fixture is intentionally shallow. It proves that CX-04 supports competition geometry and can retain one mathematically proven immediate win while leaving all unsearched alternatives explicitly unknown.
+The 7×6 fixture is shallow by design: column 3 is an immediate proven win, while non-winning root moves reach the depth boundary and remain `unknown`.
 
-- [ ] **Step 2: Run the focused file**
-
-```powershell
-uv run pytest tests/test_search.py -q
-```
-
-Expected: PASS if Task 4 implemented the approved depth semantics exactly. If any test fails, diagnose the root cause and make the smallest correction consistent with the spec; do not add heuristics or special-case the fixture.
-
-- [ ] **Step 3: Run mutation-style semantic checks manually through tests**
-
-Confirm the test suite would catch the two most dangerous semantic regressions by temporarily changing one line at a time locally, without committing the mutation:
-
-1. Change `_aggregate_values` so `unknown` is checked before `win`; verify `test_bounded_search_preserves_proven_win_with_unknown_alternatives` fails.
-2. Restore it, then change `_invert("loss")` to return `"loss"`; verify at least one exhaustive fixture fails.
-3. Restore the correct implementation and rerun the focused test file.
-
-Commands after restoring:
+- [ ] **Step 2: Verify RED**
 
 ```powershell
 uv run pytest tests/test_search.py -q
 ```
 
-Expected: all focused tests pass. No mutation is committed.
+Expected: the finite-depth conservative shell marks column 3 `unknown`, so the proven-win test fails.
 
-- [ ] **Step 4: Run the CX-04 quality gate**
+- [ ] **Step 3: Implement bounded recursion**
+
+Add:
+
+```python
+
+def _solve_bounded_value(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+    remaining_depth: int,
+) -> GameValue:
+    legal = legal_columns(board, columns)
+    if not legal:
+        return "draw"
+    if remaining_depth == 0:
+        return "unknown"
+
+    values: list[GameValue] = []
+    for column in legal:
+        candidate = drop_piece(board, column, mark, columns, rows)
+        if is_win(candidate, mark, columns, rows, inarow):
+            value: GameValue = "win"
+        else:
+            value = _invert(
+                _solve_bounded_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                    remaining_depth - 1,
+                )
+            )
+        values.append(value)
+
+    return _aggregate_values(tuple(values))
+
+
+def _bounded_root_solution(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+    max_depth: int,
+) -> PositionSolution:
+    if max_depth == 0:
+        return _unknown_root_solution(board, columns)
+
+    analyses: list[MoveAnalysis] = []
+    for column in legal_columns(board, columns):
+        candidate = drop_piece(board, column, mark, columns, rows)
+        if is_win(candidate, mark, columns, rows, inarow):
+            value: GameValue = "win"
+        else:
+            value = _invert(
+                _solve_bounded_value(
+                    candidate,
+                    3 - mark,
+                    columns,
+                    rows,
+                    inarow,
+                    max_depth - 1,
+                )
+            )
+        analyses.append(MoveAnalysis(column, value))
+
+    moves = tuple(analyses)
+    values = tuple(move.value for move in moves)
+    return PositionSolution(
+        value=_aggregate_values(values),
+        moves=moves,
+        complete="unknown" not in values,
+    )
+```
+
+Replace the conservative finite-depth return in `solve_position` with:
+
+```python
+    if max_depth is None:
+        return _exact_root_solution(board, mark, columns, rows, inarow)
+
+    return _bounded_root_solution(
+        board,
+        mark,
+        columns,
+        rows,
+        inarow,
+        max_depth,
+    )
+```
+
+- [ ] **Step 4: Verify GREEN and semantic sensitivity**
+
+Run:
+
+```powershell
+uv run pytest tests/test_search.py -q
+uv run ruff check src/connect_x_agent/search.py tests/test_search.py
+uv run mypy src/connect_x_agent/search.py tests/test_search.py
+```
+
+Then perform two local mutation checks without committing either mutation:
+
+1. Change `_aggregate_values` so `unknown` is tested before `win`. Run `uv run pytest tests/test_search.py -q` and confirm the proven-win partial-proof test fails. Restore the correct line order.
+2. Change `_invert("loss")` to return `"loss"`. Run `uv run pytest tests/test_search.py -q` and confirm an exhaustive fixture fails. Restore the correct inversion.
+
+Finally rerun:
+
+```powershell
+uv run pytest tests/test_search.py -q
+```
+
+Expected: focused suite passes after both correct restorations.
+
+- [ ] **Step 5: Commit Task 5**
+
+```powershell
+git add src/connect_x_agent/search.py tests/test_search.py
+git commit -m "feat: add CX-04 bounded partial proofs"
+```
+
+---
+
+### Task 6: Acceptance hardening and repository gate
+
+**Files:**
+- Modify: `tests/test_search.py` only if a missing acceptance assertion is identified before the final gate.
+- Review: `src/connect_x_agent/search.py`, `tests/test_search.py`, design spec, and this plan.
+
+**Interfaces:**
+- Produces repository-level acceptance evidence only.
+- Does not promote `main`; promotion requires separate explicit authorization.
+
+- [ ] **Step 1: Add one final exact-contract regression test for terminal precedence over zero depth**
+
+Append:
+
+```python
+
+def test_terminal_truth_takes_precedence_over_zero_depth_boundary() -> None:
+    board = [
+        0, 0, 2, 0,
+        1, 1, 1, 2,
+    ]
+
+    zero_depth = solve_position(board, 2, 4, 2, 3, max_depth=0)
+    exhaustive = solve_position(board, 2, 4, 2, 3)
+
+    assert zero_depth == PositionSolution("loss", (), True)
+    assert zero_depth == exhaustive
+```
+
+This is expected to pass if Task 3 ordering remained intact. If it fails, fix only the ordering defect; do not weaken validation or depth semantics.
+
+- [ ] **Step 2: Run the focused CX-04 gate**
 
 ```powershell
 Write-Host "`n=== FOCUSED CX-04 ==="
 uv run pytest tests/test_search.py -q
 
-Write-Host "`n=== RUFF ==="
+Write-Host "`n=== FOCUSED RUFF ==="
 uv run ruff check src/connect_x_agent/search.py tests/test_search.py
 
-Write-Host "`n=== MYPY ==="
+Write-Host "`n=== FOCUSED MYPY ==="
 uv run mypy src/connect_x_agent/search.py tests/test_search.py
-
-Write-Host "`n=== DIFF CHECK ==="
-git diff --check
 ```
 
-Expected: all focused tests pass; Ruff, Mypy, and diff check are clean.
+Expected: all focused tests pass; Ruff and Mypy clean.
 
-- [ ] **Step 5: Commit Task 5 if tests required any legitimate implementation/test changes**
-
-If Task 5 only added tests:
+- [ ] **Step 3: Commit the final regression test**
 
 ```powershell
 git add tests/test_search.py
-git commit -m "test: harden CX-04 partial proof semantics"
+git commit -m "test: lock CX-04 terminal precedence"
 ```
 
-If a minimal spec-consistent implementation correction was also required:
-
-```powershell
-git add src/connect_x_agent/search.py tests/test_search.py
-git commit -m "fix: preserve CX-04 bounded proof semantics"
-```
-
----
-
-### Task 6: Full repository acceptance and scope audit
-
-**Files:**
-- No new implementation files.
-- Review:
-  - `src/connect_x_agent/search.py`
-  - `tests/test_search.py`
-  - `docs/superpowers/specs/2026-08-27-cx-04-reference-solver-design.md`
-  - `docs/superpowers/plans/2026-08-27-cx-04-reference-solver.md`
-
-**Interfaces:**
-- Consumes: completed CX-04 branch.
-- Produces: repository-level acceptance evidence only; no promotion to `main` without separate explicit authorization.
-
-- [ ] **Step 1: Run the full repository gate**
+- [ ] **Step 4: Run the full repository acceptance gate**
 
 ```powershell
 Write-Host "`n=== FOCUSED CX-04 ==="
@@ -980,9 +1056,11 @@ Write-Host "`n=== STATUS ==="
 git status --short
 ```
 
-Expected: focused and full suites pass; Ruff and Mypy are clean; diff check prints no errors. Any unrelated untracked evidence must remain untouched and be reported separately rather than deleted.
+Expected: focused and full suites pass; Ruff and Mypy clean; diff check has no errors. Report unrelated untracked files rather than deleting or changing them.
 
-- [ ] **Step 2: Audit changed-file scope against `main`**
+- [ ] **Step 5: Audit scope and non-goals**
+
+Run:
 
 ```powershell
 Write-Host "`n=== CX-04 CHANGED FILES ==="
@@ -990,25 +1068,24 @@ git diff --name-only main...HEAD
 
 Write-Host "`n=== CX-04 DIFF STAT ==="
 git diff --stat main...HEAD
+
+Write-Host "`n=== CX-04 HEAD ==="
+git rev-parse HEAD
 ```
 
-Expected implementation scope beyond the already-approved docs:
+Beyond the already-approved spec and plan, implementation scope must be exactly:
 
 ```text
 src/connect_x_agent/search.py
 tests/test_search.py
 ```
 
-If another source path appears, stop and justify it against a concrete implementation need before accepting CX-04.
-
-- [ ] **Step 3: Review the final solver against the non-goals**
-
-Confirm by inspection that `search.py` contains none of the following:
+By inspection, confirm `search.py` contains none of:
 
 ```text
-best_move or action-selection policy
+best-move or action-selection policy
 random choice
-heuristic position score
+heuristic position scoring
 alpha-beta parameters or pruning
 transposition cache
 symmetry canonicalization
@@ -1019,14 +1096,8 @@ Kaggle environment calls
 persistent solution database
 ```
 
-Also confirm every root legal column is returned in deterministic ascending-column order.
+Confirm every root legal column is returned in deterministic ascending-column order.
 
-- [ ] **Step 4: Record acceptance evidence**
+Record the exact focused-test count, full-suite count, Ruff result, Mypy result, diff-check result, status output, changed paths, and branch HEAD SHA. Do not claim CX-04 complete if any gate is missing or stale.
 
-Report the exact focused-test count, full-suite count, Ruff result, Mypy result, diff-check result, status output, changed paths, and current branch HEAD SHA.
-
-Do not claim CX-04 complete if any gate is missing or stale.
-
-- [ ] **Step 5: Stop at the promotion boundary**
-
-Do not merge, fast-forward `main`, push `main`, delete the feature branch, or create a PR unless the user gives separate explicit authorization after seeing the acceptance evidence.
+Stop at the promotion boundary. Do not merge, fast-forward `main`, push `main`, delete the feature branch, or create a PR without separate explicit authorization.
