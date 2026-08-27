@@ -140,3 +140,103 @@ def test_solver_rejects_turn_count_mismatch() -> None:
             3,
             max_depth=0,
         )
+
+
+def test_terminal_previous_player_win_is_exact_loss() -> None:
+    board = [
+        0, 0, 2, 0,
+        1, 1, 1, 2,
+    ]
+
+    solution = solve_position(
+        board,
+        mark=2,
+        columns=4,
+        rows=2,
+        inarow=3,
+        max_depth=0,
+    )
+
+    assert solution == PositionSolution(
+        value="loss",
+        moves=(),
+        complete=True,
+    )
+
+
+def test_terminal_full_board_without_winner_is_exact_draw() -> None:
+    solution = solve_position(
+        board=[1, 2],
+        mark=1,
+        columns=2,
+        rows=1,
+        inarow=2,
+        max_depth=0,
+    )
+
+    assert solution == PositionSolution(
+        value="draw",
+        moves=(),
+        complete=True,
+    )
+
+
+def test_solver_rejects_simultaneous_winners() -> None:
+    board = [
+        1, 2, 0, 0,
+        1, 2, 0, 0,
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="both players",
+    ):
+        solve_position(
+            board,
+            mark=1,
+            columns=4,
+            rows=2,
+            inarow=2,
+            max_depth=0,
+        )
+
+
+def test_solver_rejects_winner_that_is_not_previous_player() -> None:
+    board = [
+        0, 2, 2, 0,
+        1, 1, 1, 2,
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="previous player",
+    ):
+        solve_position(
+            board,
+            mark=1,
+            columns=4,
+            rows=2,
+            inarow=3,
+            max_depth=0,
+        )
+
+
+def test_solver_rejects_board_requiring_play_after_an_earlier_win() -> None:
+    board = [
+        1, 2, 2,
+        1, 2, 2,
+        1, 1, 1,
+    ]
+
+    with pytest.raises(
+        ValueError,
+        match="last move",
+    ):
+        solve_position(
+            board,
+            mark=2,
+            columns=3,
+            rows=3,
+            inarow=3,
+            max_depth=0,
+        )

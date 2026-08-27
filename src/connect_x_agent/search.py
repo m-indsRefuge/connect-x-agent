@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Literal
 
-from connect_x_agent.tactical import legal_columns
+from connect_x_agent.tactical import is_win, legal_columns
 
 GameValue = Literal["win", "draw", "loss", "unknown"]
 
@@ -124,6 +124,117 @@ def _validate_structure(
         )
 
 
+
+def _has_consistent_last_move(
+    board: list[int],
+    winner: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+) -> bool:
+    for column in range(columns):
+        topmost: int | None = None
+
+        for row in range(rows):
+            index = row * columns + column
+
+            if board[index] != 0:
+                topmost = index
+                break
+
+        if topmost is None or board[topmost] != winner:
+            continue
+
+        predecessor = board.copy()
+        predecessor[topmost] = 0
+
+        if not _gravity_is_valid(
+            predecessor,
+            columns,
+            rows,
+        ):
+            continue
+
+        if not _counts_match_turn(
+            predecessor,
+            winner,
+        ):
+            continue
+
+        if is_win(
+            predecessor,
+            1,
+            columns,
+            rows,
+            inarow,
+        ):
+            continue
+
+        if is_win(
+            predecessor,
+            2,
+            columns,
+            rows,
+            inarow,
+        ):
+            continue
+
+        return True
+
+    return False
+
+
+def _winner(
+    board: list[int],
+    mark: int,
+    columns: int,
+    rows: int,
+    inarow: int,
+) -> int | None:
+    p1_wins = is_win(
+        board,
+        1,
+        columns,
+        rows,
+        inarow,
+    )
+    p2_wins = is_win(
+        board,
+        2,
+        columns,
+        rows,
+        inarow,
+    )
+
+    if p1_wins and p2_wins:
+        raise ValueError(
+            "both players cannot have winning lines"
+        )
+
+    if not p1_wins and not p2_wins:
+        return None
+
+    winner = 1 if p1_wins else 2
+    previous_player = 3 - mark
+
+    if winner != previous_player:
+        raise ValueError(
+            "winner must be the previous player"
+        )
+
+    if not _has_consistent_last_move(
+        board,
+        winner,
+        columns,
+        rows,
+        inarow,
+    ):
+        raise ValueError(
+            "winning board has no consistent last move"
+        )
+
+    return winner
+
 def _unknown_root_solution(
     board: list[int],
     columns: int,
@@ -146,6 +257,7 @@ def _unknown_root_solution(
     )
 
 
+
 def solve_position(
     board: list[int],
     mark: int,
@@ -162,6 +274,31 @@ def solve_position(
         inarow,
         max_depth,
     )
+
+    if _winner(
+        board,
+        mark,
+        columns,
+        rows,
+        inarow,
+    ) is not None:
+        return PositionSolution(
+            value="loss",
+            moves=(),
+            complete=True,
+        )
+
+    legal = legal_columns(
+        board,
+        columns,
+    )
+
+    if not legal:
+        return PositionSolution(
+            value="draw",
+            moves=(),
+            complete=True,
+        )
 
     return _unknown_root_solution(
         board,
