@@ -202,7 +202,7 @@ def _validate_max_depth(
 ) -> None:
     if max_depth is None:
         return
-    if isinstance(max_depth, bool) or not isinstance(max_depth, int):
+    if type(max_depth) is not int:
         raise ValueError("max_depth must be None or a non-negative integer")
     if max_depth < 0:
         raise ValueError("max_depth must be None or a non-negative integer")

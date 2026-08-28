@@ -5,7 +5,6 @@ from connect_x_agent.optimized_search import (
 )
 from connect_x_agent.search import solve_position
 
-
 INVALID_CASES = (
     ([0] * 41, 1),
     ([0] * 41 + [3], 1),
