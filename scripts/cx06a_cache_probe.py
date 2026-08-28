@@ -15,7 +15,6 @@ from connect_x_agent.search import (
     solve_position,
 )
 
-
 DEFAULT_TRIALS = 3
 
 
