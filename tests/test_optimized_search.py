@@ -1,4 +1,5 @@
-from connect_x_agent.search import MoveAnalysis, PositionSolution
+import pytest
+
 from connect_x_agent.optimized_search import (
     BOARD_SIZE,
     COLUMNS,
@@ -6,6 +7,7 @@ from connect_x_agent.optimized_search import (
     ROWS,
     solve_optimized_position,
 )
+from connect_x_agent.search import MoveAnalysis, PositionSolution
 
 
 FULL_DRAW_BOARD = [
@@ -80,3 +82,76 @@ def test_solver_does_not_mutate_input_board() -> None:
     )
 
     assert board == before
+
+
+@pytest.mark.parametrize(
+    ("board", "mark"),
+    [
+        ([0] * 41, 1),
+        ([0] * 41 + [3], 1),
+        ([1] + [0] * 41, 2),
+        ([0] * 35 + [1, 0, 0, 0, 0, 0, 0], 1),
+        (
+            [0] * 28
+            + [2, 2, 2, 2, 1, 1, 1]
+            + [1, 1, 1, 1, 2, 2, 2],
+            1,
+        ),
+        (
+            [0] * 28
+            + [0, 0, 0, 0, 2, 0, 0]
+            + [1, 1, 1, 1, 2, 2, 2],
+            1,
+        ),
+        (
+            [
+                0, 0, 2, 0, 0, 0, 0,
+                0, 0, 1, 1, 2, 1, 2,
+                0, 0, 2, 2, 1, 2, 1,
+                0, 1, 1, 1, 2, 1, 1,
+                2, 1, 1, 1, 2, 1, 1,
+                2, 2, 2, 1, 2, 2, 2,
+            ],
+            2,
+        ),
+    ],
+    ids=[
+        "wrong-board-length",
+        "invalid-cell",
+        "floating-piece",
+        "turn-count-mismatch",
+        "simultaneous-winners",
+        "winner-not-previous-mover",
+        "winner-not-created-by-legal-last-move",
+    ],
+)
+def test_invalid_positions_raise_value_error(
+    board: list[int],
+    mark: int,
+) -> None:
+    with pytest.raises(ValueError):
+        solve_optimized_position(
+            board,
+            mark=mark,
+            max_depth=0,
+        )
+
+
+@pytest.mark.parametrize("mark", [0, 3])
+def test_invalid_mark_raises_value_error(mark: int) -> None:
+    with pytest.raises(ValueError):
+        solve_optimized_position(
+            [0] * 42,
+            mark=mark,
+            max_depth=0,
+        )
+
+
+@pytest.mark.parametrize("max_depth", [-1, -2])
+def test_negative_depth_raises_value_error(max_depth: int) -> None:
+    with pytest.raises(ValueError):
+        solve_optimized_position(
+            [0] * 42,
+            mark=1,
+            max_depth=max_depth,
+        )
