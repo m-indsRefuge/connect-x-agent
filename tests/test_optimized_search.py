@@ -5,7 +5,10 @@ from connect_x_agent.optimized_search import (
     COLUMNS,
     INAROW,
     ROWS,
+    SearchStats,
+    _cache_key,
     solve_optimized_position,
+    solve_optimized_position_with_stats,
 )
 from connect_x_agent.search import MoveAnalysis, PositionSolution
 
@@ -154,3 +157,81 @@ def test_negative_depth_raises_value_error(max_depth: int) -> None:
             mark=1,
             max_depth=max_depth,
         )
+
+
+def test_cache_key_isolates_depth_and_player() -> None:
+    board = [0] * 42
+
+    depth_four = _cache_key(
+        board,
+        mark=1,
+        remaining_depth=4,
+    )
+    depth_six = _cache_key(
+        board,
+        mark=1,
+        remaining_depth=6,
+    )
+    other_player = _cache_key(
+        board,
+        mark=2,
+        remaining_depth=4,
+    )
+    exhaustive = _cache_key(
+        board,
+        mark=1,
+        remaining_depth=None,
+    )
+
+    assert depth_four != depth_six
+    assert depth_four != other_player
+    assert depth_four != exhaustive
+
+
+def test_transposition_rich_search_records_cache_hits() -> None:
+    solution, stats = solve_optimized_position_with_stats(
+        [0] * 42,
+        mark=1,
+        max_depth=4,
+    )
+
+    assert solution.value == "unknown"
+    assert isinstance(stats, SearchStats)
+    assert stats.nodes_visited > 0
+    assert stats.cache_hits > 0
+    assert stats.cache_misses > 0
+    assert stats.cache_entries > 0
+    assert stats.cache_entries <= stats.cache_misses
+
+
+def test_transposition_table_is_fresh_per_solver_call() -> None:
+    first_solution, first_stats = solve_optimized_position_with_stats(
+        [0] * 42,
+        mark=1,
+        max_depth=4,
+    )
+    second_solution, second_stats = solve_optimized_position_with_stats(
+        [0] * 42,
+        mark=1,
+        max_depth=4,
+    )
+
+    assert first_solution == second_solution
+    assert first_stats == second_stats
+
+
+def test_production_api_matches_diagnostic_api() -> None:
+    board = [0] * 42
+
+    normal = solve_optimized_position(
+        board,
+        mark=1,
+        max_depth=4,
+    )
+    diagnostic, _ = solve_optimized_position_with_stats(
+        board,
+        mark=1,
+        max_depth=4,
+    )
+
+    assert normal == diagnostic
