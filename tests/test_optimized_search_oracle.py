@@ -83,6 +83,74 @@ FRONTIER_CASES = (
     ),
 )
 
+EXACT_CASES = (
+    (
+        "forced-win-mixed-root-values",
+        [
+            0, 2, 0, 0, 2, 0, 0,
+            0, 1, 0, 0, 2, 2, 1,
+            0, 2, 0, 0, 1, 2, 2,
+            2, 1, 1, 0, 2, 1, 1,
+            2, 2, 1, 2, 1, 1, 1,
+            2, 1, 1, 1, 2, 2, 1,
+        ],
+        1,
+        PositionSolution(
+            value="win",
+            moves=(
+                MoveAnalysis(0, "win"),
+                MoveAnalysis(2, "win"),
+                MoveAnalysis(3, "win"),
+                MoveAnalysis(5, "loss"),
+                MoveAnalysis(6, "loss"),
+            ),
+            complete=True,
+        ),
+    ),
+    (
+        "forced-draw",
+        [
+            1, 1, 2, 0, 1, 0, 0,
+            2, 1, 1, 0, 2, 0, 0,
+            2, 1, 2, 0, 2, 0, 0,
+            1, 2, 1, 0, 1, 2, 0,
+            2, 2, 1, 2, 1, 1, 0,
+            1, 2, 1, 2, 2, 2, 1,
+        ],
+        1,
+        PositionSolution(
+            value="draw",
+            moves=(
+                MoveAnalysis(3, "loss"),
+                MoveAnalysis(5, "draw"),
+                MoveAnalysis(6, "loss"),
+            ),
+            complete=True,
+        ),
+    ),
+    (
+        "forced-loss",
+        [
+            1, 2, 1, 0, 0, 2, 0,
+            2, 1, 1, 0, 0, 1, 0,
+            1, 2, 2, 2, 0, 1, 0,
+            2, 1, 1, 2, 0, 2, 0,
+            1, 2, 2, 2, 0, 1, 0,
+            2, 1, 1, 1, 2, 1, 2,
+        ],
+        1,
+        PositionSolution(
+            value="loss",
+            moves=(
+                MoveAnalysis(3, "loss"),
+                MoveAnalysis(4, "loss"),
+                MoveAnalysis(6, "loss"),
+            ),
+            complete=True,
+        ),
+    ),
+)
+
 
 def _reference_rejects(
     board: list[int],
@@ -181,3 +249,34 @@ def test_depth_one_preserves_proven_win_with_unknown_alternatives() -> None:
         ),
         complete=False,
     )
+
+
+@pytest.mark.parametrize(
+    ("name", "board", "mark", "expected"),
+    EXACT_CASES,
+    ids=[case[0] for case in EXACT_CASES],
+)
+def test_exhaustive_standard_positions_match_cx04(
+    name: str,
+    board: list[int],
+    mark: int,
+    expected: PositionSolution,
+) -> None:
+    del name
+
+    reference = solve_position(
+        board,
+        mark=mark,
+        columns=7,
+        rows=6,
+        inarow=4,
+        max_depth=None,
+    )
+    optimized = solve_optimized_position(
+        board,
+        mark=mark,
+        max_depth=None,
+    )
+
+    assert reference == expected
+    assert optimized == reference
