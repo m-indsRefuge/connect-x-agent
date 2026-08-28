@@ -223,15 +223,63 @@ def _terminal_value(
     return None
 
 
-def solve_optimized_position(
+def _search_value_uncached(
     board: list[int],
     mark: int,
-    max_depth: int | None = None,
-) -> PositionSolution:
-    _validate_position(board, mark)
-    _validate_max_depth(max_depth)
+    remaining_depth: int | None,
+) -> GameValue:
+    terminal = _terminal_value(
+        board,
+        mark,
+    )
+    if terminal is not None:
+        return terminal
 
-    terminal = _terminal_value(board, mark)
+    if remaining_depth == 0:
+        return "unknown"
+
+    child_depth = (
+        None
+        if remaining_depth is None
+        else remaining_depth - 1
+    )
+
+    move_values: list[GameValue] = []
+
+    for column in _legal_columns(board):
+        child = _drop_piece(
+            board,
+            column,
+            mark,
+        )
+
+        if _is_win(child, mark):
+            move_values.append("win")
+            continue
+
+        child_value = _search_value_uncached(
+            child,
+            3 - mark,
+            child_depth,
+        )
+        move_values.append(
+            _invert_value(child_value)
+        )
+
+    return _aggregate_values(
+        tuple(move_values)
+    )
+
+
+def _solve_uncached(
+    board: list[int],
+    mark: int,
+    max_depth: int | None,
+) -> PositionSolution:
+    terminal = _terminal_value(
+        board,
+        mark,
+    )
     if terminal is not None:
         return PositionSolution(
             value=terminal,
@@ -252,6 +300,66 @@ def solve_optimized_position(
             complete=False,
         )
 
-    raise NotImplementedError(
-        "Recursive optimized search is introduced in Task 3"
+    child_depth = (
+        None
+        if max_depth is None
+        else max_depth - 1
+    )
+
+    moves: list[MoveAnalysis] = []
+
+    for column in legal:
+        child = _drop_piece(
+            board,
+            column,
+            mark,
+        )
+
+        if _is_win(child, mark):
+            value: GameValue = "win"
+        else:
+            value = _invert_value(
+                _search_value_uncached(
+                    child,
+                    3 - mark,
+                    child_depth,
+                )
+            )
+
+        moves.append(
+            MoveAnalysis(
+                column=column,
+                value=value,
+            )
+        )
+
+    move_tuple = tuple(moves)
+
+    return PositionSolution(
+        value=_aggregate_values(
+            tuple(
+                move.value
+                for move in move_tuple
+            )
+        ),
+        moves=move_tuple,
+        complete=all(
+            move.value != "unknown"
+            for move in move_tuple
+        ),
+    )
+
+
+def solve_optimized_position(
+    board: list[int],
+    mark: int,
+    max_depth: int | None = None,
+) -> PositionSolution:
+    _validate_position(board, mark)
+    _validate_max_depth(max_depth)
+
+    return _solve_uncached(
+        board,
+        mark,
+        max_depth,
     )
