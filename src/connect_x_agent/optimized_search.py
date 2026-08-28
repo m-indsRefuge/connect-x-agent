@@ -290,13 +290,13 @@ def _solve_uncached(
     legal = _legal_columns(board)
 
     if max_depth == 0:
-        moves = tuple(
+        unknown_moves = tuple(
             MoveAnalysis(column, "unknown")
             for column in legal
         )
         return PositionSolution(
             value="unknown",
-            moves=moves,
+            moves=unknown_moves,
             complete=False,
         )
 
@@ -306,7 +306,7 @@ def _solve_uncached(
         else max_depth - 1
     )
 
-    moves: list[MoveAnalysis] = []
+    analyses: list[MoveAnalysis] = []
 
     for column in legal:
         child = _drop_piece(
@@ -326,14 +326,14 @@ def _solve_uncached(
                 )
             )
 
-        moves.append(
+        analyses.append(
             MoveAnalysis(
                 column=column,
                 value=value,
             )
         )
 
-    move_tuple = tuple(moves)
+    move_tuple = tuple(analyses)
 
     return PositionSolution(
         value=_aggregate_values(
