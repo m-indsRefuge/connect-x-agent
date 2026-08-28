@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from connect_x_agent.search import (
     GameValue,
     MoveAnalysis,
@@ -10,6 +12,41 @@ COLUMNS = 7
 ROWS = 6
 INAROW = 4
 BOARD_SIZE = COLUMNS * ROWS
+
+CacheKey = tuple[
+    tuple[int, ...],
+    int,
+    int | None,
+]
+
+
+@dataclass(frozen=True)
+class SearchStats:
+    nodes_visited: int
+    cache_hits: int
+    cache_misses: int
+    cache_entries: int
+    max_recursion_depth: int
+
+
+@dataclass
+class _SearchCounters:
+    nodes_visited: int = 0
+    cache_hits: int = 0
+    cache_misses: int = 0
+    max_recursion_depth: int = 0
+
+
+def _cache_key(
+    board: list[int],
+    mark: int,
+    remaining_depth: int | None,
+) -> CacheKey:
+    return (
+        tuple(board),
+        mark,
+        remaining_depth,
+    )
 
 
 def _legal_columns(board: list[int]) -> list[int]:
@@ -223,19 +260,43 @@ def _terminal_value(
     return None
 
 
-def _search_value_uncached(
+def _search_value(
     board: list[int],
     mark: int,
     remaining_depth: int | None,
+    table: dict[CacheKey, GameValue],
+    counters: _SearchCounters,
+    recursion_depth: int,
 ) -> GameValue:
+    counters.nodes_visited += 1
+    counters.max_recursion_depth = max(
+        counters.max_recursion_depth,
+        recursion_depth,
+    )
+
+    key = _cache_key(
+        board,
+        mark,
+        remaining_depth,
+    )
+    cached = table.get(key)
+
+    if cached is not None:
+        counters.cache_hits += 1
+        return cached
+
+    counters.cache_misses += 1
+
     terminal = _terminal_value(
         board,
         mark,
     )
     if terminal is not None:
+        table[key] = terminal
         return terminal
 
     if remaining_depth == 0:
+        table[key] = "unknown"
         return "unknown"
 
     child_depth = (
@@ -257,34 +318,60 @@ def _search_value_uncached(
             move_values.append("win")
             continue
 
-        child_value = _search_value_uncached(
+        child_value = _search_value(
             child,
             3 - mark,
             child_depth,
+            table,
+            counters,
+            recursion_depth + 1,
         )
         move_values.append(
             _invert_value(child_value)
         )
 
-    return _aggregate_values(
+    result = _aggregate_values(
         tuple(move_values)
+    )
+    table[key] = result
+    return result
+
+
+def _zero_stats() -> SearchStats:
+    return SearchStats(
+        nodes_visited=0,
+        cache_hits=0,
+        cache_misses=0,
+        cache_entries=0,
+        max_recursion_depth=0,
     )
 
 
-def _solve_uncached(
+def _solve_with_stats(
     board: list[int],
     mark: int,
     max_depth: int | None,
-) -> PositionSolution:
+) -> tuple[PositionSolution, SearchStats]:
+    _validate_position(
+        board,
+        mark,
+    )
+    _validate_max_depth(
+        max_depth,
+    )
+
     terminal = _terminal_value(
         board,
         mark,
     )
     if terminal is not None:
-        return PositionSolution(
-            value=terminal,
-            moves=(),
-            complete=True,
+        return (
+            PositionSolution(
+                value=terminal,
+                moves=(),
+                complete=True,
+            ),
+            _zero_stats(),
         )
 
     legal = _legal_columns(board)
@@ -294,11 +381,17 @@ def _solve_uncached(
             MoveAnalysis(column, "unknown")
             for column in legal
         )
-        return PositionSolution(
-            value="unknown",
-            moves=unknown_moves,
-            complete=False,
+        return (
+            PositionSolution(
+                value="unknown",
+                moves=unknown_moves,
+                complete=False,
+            ),
+            _zero_stats(),
         )
+
+    table: dict[CacheKey, GameValue] = {}
+    counters = _SearchCounters()
 
     child_depth = (
         None
@@ -319,10 +412,13 @@ def _solve_uncached(
             value: GameValue = "win"
         else:
             value = _invert_value(
-                _search_value_uncached(
+                _search_value(
                     child,
                     3 - mark,
                     child_depth,
+                    table,
+                    counters,
+                    recursion_depth=1,
                 )
             )
 
@@ -335,7 +431,7 @@ def _solve_uncached(
 
     move_tuple = tuple(analyses)
 
-    return PositionSolution(
+    solution = PositionSolution(
         value=_aggregate_values(
             tuple(
                 move.value
@@ -349,16 +445,36 @@ def _solve_uncached(
         ),
     )
 
+    stats = SearchStats(
+        nodes_visited=counters.nodes_visited,
+        cache_hits=counters.cache_hits,
+        cache_misses=counters.cache_misses,
+        cache_entries=len(table),
+        max_recursion_depth=counters.max_recursion_depth,
+    )
+
+    return solution, stats
+
 
 def solve_optimized_position(
     board: list[int],
     mark: int,
     max_depth: int | None = None,
 ) -> PositionSolution:
-    _validate_position(board, mark)
-    _validate_max_depth(max_depth)
+    solution, _ = _solve_with_stats(
+        board,
+        mark,
+        max_depth,
+    )
+    return solution
 
-    return _solve_uncached(
+
+def solve_optimized_position_with_stats(
+    board: list[int],
+    mark: int,
+    max_depth: int | None = None,
+) -> tuple[PositionSolution, SearchStats]:
+    return _solve_with_stats(
         board,
         mark,
         max_depth,
