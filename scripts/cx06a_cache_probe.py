@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import argparse
+from collections.abc import Callable
 from dataclasses import dataclass
 from statistics import median
 from time import perf_counter
-from typing import Callable
 
 from connect_x_agent.optimized_search import (
     SearchStats,
