@@ -1,3 +1,6 @@
+import runpy
+from pathlib import Path
+
 import pytest
 
 from connect_x_agent.optimized_search import (
@@ -235,3 +238,29 @@ def test_production_api_matches_diagnostic_api() -> None:
     )
 
     assert normal == diagnostic
+
+
+def test_cx06a_cache_probe_declares_fixed_frontier_positions() -> None:
+    script = (
+        Path(__file__).resolve().parents[1]
+        / "scripts"
+        / "cx06a_cache_probe.py"
+    )
+
+    namespace = runpy.run_path(
+        str(script),
+        run_name="cx06a_probe_test",
+    )
+
+    positions = namespace["FRONTIER_POSITIONS"]
+
+    assert tuple(
+        position.name
+        for position in positions
+    ) == (
+        "empty-opening",
+        "game1-danger-ply20",
+        "negamax-danger-ply17",
+        "hybrid-pre-loss-ply15",
+    )
+    assert namespace["DEFAULT_TRIALS"] == 3
